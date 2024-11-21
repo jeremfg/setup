@@ -1,0 +1,540 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# This script configures the MTA to send emails
+# Currenly supports the following:
+#  - mailx
+#  - ssmtp
+#
+# This script uses a sendemail.conf file as input
+
+if [[ -z ${GUARD_MAIL_SH} ]]; then
+  GUARD_MAIL_SH=1
+else
+  return 0
+fi
+
+mail_configure_prerequisites() {
+  if ! command -v sops &>/dev/null; then
+    logError "SOPS is required"
+  fi
+  if [[ -z "${BIN_DIR}" ]]; then
+    logError "BIN_DIR is not set"
+    return 1
+  fi
+  if [[ -z "${CONFIG_DIR}" ]]; then
+    logError "CONFIG_DIR is not set"
+    return 1
+  fi
+  return 0
+}
+
+# Configure mail on this machine
+#
+# Parameters:
+#   $1[in]: Path to a sendemail.conf file containing the expected variables configuring the mail client
+#   $2[in]: Path to MTA configuration file containing SSMTP_USER, SSMTP_PASS, SSMTP_HUB and SSMTP_SSMTP_USESTARTTLS
+# Returns:
+#   0: If configuration was successful
+#   1: If configuration failed
+mail_configure() {
+  local conf_client="$1"
+  local conf_mta="$2"
+  local file_content
+
+  if ! mail_configure_prerequisites; then
+    logError "Configuration pre-requisites not met"
+    return 1
+  fi
+  if ! mail_is_supported; then
+    logError "Cannot configure emails on this system"
+    return 1
+  fi
+  if [[ ! -f "${conf_client}" ]]; then
+    logError "Mail client configuration not provided"
+    return 1
+  fi
+  if [[ ! -f "${conf_mta}" ]]; then
+    logError "MTA configuration not provided"
+    return 1
+  fi
+  local conf_client_dest="${CONFIG_DIR}/${MAIL_CFG_NAME}"
+
+  # We have everything we need. Configure...
+  # If encrypted, decrypt it
+  if sops -d --input-type dotenv --output-type dotenv "${conf_client}" &>/dev/null; then
+    if ! sops -d --input-type dotenv --output-type dotenv "${conf_client}" >"${conf_client_dest}"; then
+      logError "Failed to install an encrypted mail configuration"
+      return 1
+    fi
+    logInfo "Installed encrypted mail configuration"
+  else
+    if ! cp "${conf_client}" "${conf_client_dest}"; then
+      logError "Failed to copy mail configuration"
+      return 1
+    fi
+    logInfo "Installed mail configuration"
+  fi
+
+  # Add include guard to email config
+  file_content=$(
+    cat <<EOF
+# Configuration options for sending emails
+
+if [[ -z "\${GUARD_EMAIL_ENV}" ]]; then
+  GUARD_EMAIL_ENV=1
+else
+  return 0
+fi
+
+$(cat "${conf_client_dest}" || true)
+EOF
+  )
+  if ! echo "${file_content}" >"${conf_client_dest}"; then
+    logError "Failed to add include guard to email configuration"
+    return 1
+  fi
+
+  # Set the mail command
+  config_save "${conf_client_dest}" "MAIL_CMD" "${MAIL_CMD}"
+
+  # Configure ssmtp
+  local conf_ssmtp
+  for conf_ssmtp in "${SSMTP_CONF[@]}"; do
+    if [[ -f "${conf_ssmtp}" ]]; then
+      break
+    else
+      conf_ssmtp=""
+    fi
+  done
+  if [[ -z "${conf_ssmtp}" ]]; then
+    logError "ssmtp configuration not found"
+    return 1
+  elif [[ ! -f "${conf_ssmtp}.bak" ]]; then
+    if ! cp "${conf_ssmtp}" "${conf_ssmtp}.bak"; then
+      logError "Failed to backup ssmtp configuration"
+      return 1
+    fi
+  fi
+  logTrace "Using ssmtp configuration: ${conf_ssmtp}"
+
+  # Retrieve the configuration values
+  if config_load "${conf_mta}"; then
+    logInfo "Loaded MTA configuration"
+  else
+    logError "Failed to load MTA configuration"
+    return 1
+  fi
+
+  # Configure ssmtp
+  if config_save "${conf_ssmtp}" "mailhub" "${SSMTP_HUB}"; then
+    logInfo "Configured mailhub"
+  else
+    logError "Failed to configure mailhub"
+    return 1
+  fi
+  if config_save "${conf_ssmtp}" "AuthUser" "${SSMTP_USER}"; then
+    logInfo "Configured AuthUser"
+  else
+    logError "Failed to configure AuthUser"
+    return 1
+  fi
+  if config_save "${conf_ssmtp}" "AuthPass" "${SSMTP_PASS}"; then
+    logInfo "Configured AuthPass"
+  else
+    logError "Failed to configure AuthPass"
+    return 1
+  fi
+  if config_save "${conf_ssmtp}" "UseSTARTTLS" "${SSMTP_USESTARTTLS}"; then
+    logInfo "Configured UseSTARTTLS"
+  else
+    logError "Failed to configure UseSTARTTLS"
+    return 1
+  fi
+
+  # Install the email test script
+  file_content=$(
+    cat <<EOF
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# Test sending of an email
+# (This file was automatically generated during mail configuration)
+
+# Determine BPKG's global prefix
+if [[ -z "\${PREFIX}" ]]; then
+  if [[ \$(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="\${HOME}/.local"
+  fi
+fi
+
+# Import email configuration
+if ! source "\${PREFIX}/lib/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+if ! source "${conf_client_dest}"; then
+  logFatal "Failed to import email configuration"
+fi
+
+SUBJECT="[\$(hostname)] Test email"
+MESSAGE=\$(cat <<END
+
+Subject: \${SUBJECT}
+
+Arguments: (\$#):"
+\$(for arg in "\$@"; do echo "  \${arg}"; done)
+
+This is simply a test email
+
+END
+)
+
+# Logging it
+logInfo <<END
+Logging test email:
+
+\${MESSAGE}
+END
+
+echo "\${MESSAGE}" | \${MAIL_CMD} -s "\${SUBJECT}" -r \${SENDER} \${SYSADMIN}
+if [[ \$? -ne 0 ]]; then
+  logError "Failed to send test email"
+  exit 1
+else
+  logInfo "Test email sent succesfully"
+fi
+
+EOF
+  )
+
+  logInfo "Installing email test script"
+  if ! echo "${file_content}" >"${BIN_DIR}/email_test.sh"; then
+    logWarn "Failed to install email test script"
+  fi
+  if ! chmod +x "${BIN_DIR}/email_test.sh"; then
+    logWarn "Failed to make email test script executable"
+  fi
+
+  return 0
+}
+
+# Send a test email
+#
+# Parameters:
+#   $1[in]: Email address of the recie (To)
+#   $2[in]: Subject of the email
+#   $3[in]: Body of the email
+# Returns:
+#   0: If email was sent successfully
+#   1: If email failed to send
+mail_test() {
+  local dest="$1"
+  local subject="$2"
+  local body="$3"
+
+  if ! mail_is_supported; then
+    logError "No mail client on this system"
+    return 1
+  fi
+
+  local conf_client="${CONFIG_DIR}/${MAIL_CFG_NAME}"
+  if [[ ! -f "${conf_client}" ]]; then
+    logError "Mail client configuration not found"
+    return 1
+  fi
+
+  # Import email configuration
+  # shellcheck disable=SC1090
+  if ! source "${conf_client}"; then
+    logError "Failed to import email configuration"
+    return 1
+  fi
+
+  # Send the email
+  if ! echo "${body}" | ${MAIL_CMD} -s "${subject}" -r "${SENDER}" "${dest}"; then
+    logError "Failed to send test email"
+    return 1
+  else
+    logInfo "Test email sent succesfully"
+  fi
+
+  return 0
+}
+
+# Entry point when executed
+mail_main() {
+  if ! mail_is_supported; then
+    logError "Cannot configure emails on this system"
+    return 1
+  fi
+
+  # shellcheck disable=SC2119
+  if ! mail_parse; then
+    logError "Failed to parse mail arguments"
+    return 1
+  fi
+
+  case "${MAIL_SUBCMD}" in
+  configure)
+    if ! mail_configure "${CLIENT_CFG}" "${MTA_CFG}"; then
+      logError "Failed to configure email"
+      return 1
+    fi
+    ;;
+  test)
+    if ! mail_test "${MAIL_DEST}" "${MAIL_SUBJECT}" "${MAIL_BODY}"; then
+      logError "Failed to send test email"
+      return 1
+    fi
+    ;;
+  *)
+    logError "Invalid command: ${MAIL_SUBCMD}"
+    return 1
+    ;;
+  esac
+
+  return 0
+}
+
+mail_is_supported() {
+  local res
+
+  # Check if the mail command is supported, and if so, points to mailx
+  if ! res=$(command -v mail); then
+    logError "mail command not found"
+    return 1
+  elif [[ -z ${res} ]]; then
+    logError "mail command not found"
+    return 1
+  elif [[ ! -L "${res}" ]]; then
+    logError "mail command is not a symlink"
+    return 1
+  else
+    MAIL_CMD="${res}"
+  fi
+
+  # Find out where MAIL_CMD is linking to
+  if ! res=$(readlink -f "${MAIL_CMD}"); then
+    logError "Failed to find out where mail command is linking to"
+    return 1
+  elif [[ ! "$(basename "${res}")" =~ "mailx" ]]; then
+    logError "mail command is not pointing to mailx"
+    return 1
+  else
+    MAIL_CMD="${res}"
+  fi
+
+  return 0
+}
+
+# shellcheck disable=SC2120
+mail_parse() {
+  local short="hvs:b:"
+  local long="help,version,subject,body"
+
+  if ! command -v getopt &>/dev/null; then
+    logError "getopt not found"
+    return 1
+  fi
+
+  local parsed
+  if ! parsed=$(getopt --options "${short}" --long "${long}" --name "${MX_ME}" -- "${MX_ARGS[@]}"); then
+    logError "Failed to parse arguments"
+    mail_print_usage
+    return 1
+  fi
+
+  eval set -- "${parsed}"
+  while true; do
+    case "$1" in
+    -h | --help)
+      mail_print_usage
+      return 0
+      ;;
+    -v | --version)
+      echo "0.0.0"
+      return 0
+      ;;
+    -s | --subject)
+      shift
+      MAIL_SUBJECT="$1"
+      ;;
+    -b | --body)
+      shift
+      MAIL_BODY="$1"
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      logError "Invalid argument: $1"
+      mail_print_usage
+      return 1
+      ;;
+    esac
+  done
+
+  # Handle positional arguments
+  while [[ $# -gt 0 ]]; do
+    if [[ -z "${MAIL_SUBCMD}" ]]; then
+      if [[ "${1}" != "configure" ]] && [[ "${1}" != "test" ]]; then
+        logError "Invalid command: ${1}"
+        mail_print_usage
+        return 1
+      fi
+      declare -g MAIL_SUBCMD="${1}"
+      shift
+    elif [[ "${MAIL_SUBCMD}" == "configure" ]]; then
+      if [[ -z "${CLIENT_CFG}" ]]; then
+        declare -g CLIENT_CFG="${1}"
+        shift
+      elif [[ -z "${MTA_CFG}" ]]; then
+        declare -g MTA_CFG="${1}"
+        shift
+      else
+        logError "Too many arguments. Parsed: ${1}"
+        mail_print_usage
+        return 1
+      fi
+    elif [[ "${MAIL_SUBCMD}" == "test" ]]; then
+      if [[ -z "${MAIL_DEST}" ]]; then
+        declare -g MAIL_DEST="${1}"
+      else
+        logError "Too many arguments. Parsed: ${1}"
+        mail_print_usage
+        return 1
+      fi
+    else
+      logError "Invalid argument \"${MAIL_SUBCMD}\" for command \"${MAIL_SUBCMD}\""
+      mail_print_usage
+      return 1
+    fi
+  done
+
+  # Handle piped arguments
+  if [[ -n "${MX_PIPED_ARG}" ]]; then
+    logInfo "Piped argument detected: ${MX_PIPED_ARG}. Overwirting body..."
+    MAIL_BODY="${MX_PIPED_ARG}"
+  fi
+
+  # Check if required arguments are present
+  if [[ -z "${MAIL_SUBCMD}" ]]; then
+    logError "No command provided"
+    mail_print_usage
+    return 1
+  elif [[ "${MAIL_SUBCMD}" == "configure" ]]; then
+    if [[ -z "${CLIENT_CFG}" ]]; then
+      logError "No client configuration provided"
+      mail_print_usage
+      return 1
+    elif [[ -z "${MTA_CFG}" ]]; then
+      logError "No MTA configuration provided"
+      mail_print_usage
+      return 1
+    fi
+  elif [[ "${MAIL_SUBCMD}" == "test" ]]; then
+    if [[ -z "${MAIL_DEST}" ]]; then
+      logError "No destination provided"
+      mail_print_usage
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+mail_print_usage() {
+  cat <<EOF
+This script configures the MTA and provices an example script to test emails
+
+Usage: ${MX_ME} configure <client_config> <mta_config>
+       ${MX_ME} test <dest> [-s <subject>] [-b <body>]
+
+Arguments:
+  client_config Path to a sendemail.conf file containing the expected variables configuring the MTA
+  mta_config    Path to MTA configuration file containing SSMTP_USER, SSMTP_PASS, SSMTP_HUB and SSMTP_SSMTP_USESTARTTLS
+  dest          Email address of the recie (To:)
+
+Options:
+  -s, --subject Subject of the email
+  -b, --body    Body of the email
+  -h, --help     Print this help message
+  -v, --version  Print the version of this script
+EOF
+  return 0
+}
+
+# Arrays of knnwn locations where sssmtp configuration files can be found
+SSMTP_CONF=(
+  "/etc/ssmtp/ssmtp.conf"
+  "/etc/ssmtp.conf"
+)
+
+# Variables loaded externally
+SSMTP_HUB=""
+SSMTP_USER=""
+SSMTP_PASS=""
+SSMTP_USESTARTTLS=""
+SENDER=""
+
+# Constants
+MAIL_CFG_NAME="email.env"
+
+###########################
+###### Startup logic ######
+###########################
+MX_ARGS=("$@")
+MX_ME="$(basename "${BASH_SOURCE[0]}")"
+
+# Get directory of this script
+# https://stackoverflow.com/a/246128
+MX_SOURCE=${BASH_SOURCE[0]}
+while [[ -L "${MX_SOURCE}" ]]; do # resolve $MX_SOURCE until the file is no longer a symlink
+  MX_ROOT=$(cd -P "$(dirname "${MX_SOURCE}")" >/dev/null 2>&1 && pwd)
+  MX_SOURCE=$(readlink "${MX_SOURCE}")
+  [[ ${MX_SOURCE} != /* ]] && MX_SOURCE=${MX_ROOT}/${MX_SOURCE} # if $MX_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+MX_ROOT=$(cd -P "$(dirname "${MX_SOURCE}")" >/dev/null 2>&1 && pwd)
+MX_ROOT=$(realpath "${MX_ROOT}/..")
+
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX}" ]]; then
+  if [[ $(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="${HOME}/.local"
+  fi
+fi
+
+# Import dependencies
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/config.sh"; then
+  logFatal "Failed to import config.sh"
+fi
+if ! source "${MX_ROOT}/src/git.sh"; then
+  logFatal "Failed to import git.sh"
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  # This script was piped
+  logFatal "This script cannot be piped"
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  :
+else
+  # This script was executed
+  if [[ -p /dev/stdin ]]; then # This script received input from a pipe
+    MX_PIPED_ARG=$(cat)
+  fi
+  mail_main "${@}"
+  exit $?
+fi

@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# This script configures NetData for the system.
+
+if [[ -z ${GUARD_NETDATA_SH} ]]; then
+  GUARD_NETDATA_SH=1
+else
+  return 0
+fi
+
+# Configure NetData
+#
+# Parameters:
+#    $1[in]: Source email
+#    $2[in]: Destination email
+#  Returns:
+#    0: Success
+#    1: Failure
+netdata_configure() {
+  if ! pkg_install "netdata"; then
+    logError "Could not install netdata"
+    return 1
+  fi
+  logInfo "Configuring NetData with source email: ${1} and destination email: ${2}"
+  if ! config_save "${NETDATA_NOTIFY_CONF}" "EMAIL_SENDER" "\"${1}\""; then
+    logError "Could not save netdata configuration"
+    return 1
+  fi
+  if ! config_save "${NETDATA_NOTIFY_CONF}" "SEND_EMAIL" "\"YES\""; then
+    logError "Could not save netdata configuration"
+    return 1
+  fi
+  if ! config_save "${NETDATA_NOTIFY_CONF}" "DEFAULT_RECIPIENT_EMAIL" "\"${2}\""; then
+    logError "Could not save netdata configuration"
+    return 1
+  fi
+
+  return 0
+}
+
+netdata_test_email() {
+  if ! /usr/libexec/netdata/plugins.d/alarm-notify.sh test; then
+    logError "Failed to send test email"
+    return 1
+  fi
+}
+
+# Example, get in the right config folder
+# cd /etc/netdata 2>/dev/null || cd /opt/netdata/etc/netdata
+
+# Constants
+NETDATA_CONFIG_DIR="/etc/netdata"
+NETDATA_NOTIFY_CONF="${NETDATA_CONFIG_DIR}/health_alarm_notify.conf"
+
+###########################
+###### Startup logic ######
+###########################
+
+# Get directory of this script
+# https://stackoverflow.com/a/246128
+ND_SOURCE=${BASH_SOURCE[0]}
+while [[ -L "${ND_SOURCE}" ]]; do # resolve $ND_SOURCE until the file is no longer a symlink
+  ND_ROOT=$(cd -P "$(dirname "${ND_SOURCE}")" >/dev/null 2>&1 && pwd)
+  ND_SOURCE=$(readlink "${ND_SOURCE}")
+  [[ ${ND_SOURCE} != /* ]] && ND_SOURCE=${ND_ROOT}/${ND_SOURCE} # if $ND_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+ND_ROOT=$(cd -P "$(dirname "${ND_SOURCE}")" >/dev/null 2>&1 && pwd)
+ND_ROOT=$(realpath "${ND_ROOT}/..")
+
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX}" ]]; then
+  if [[ $(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="${HOME}/.local"
+  fi
+fi
+
+# Import dependencies
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/config.sh"; then
+  echo "Failed to import config.sh"
+  exit 1
+fi
+if ! source "${ND_ROOT}/src/pkg.sh"; then
+  logFatal "Failed to import pkg.sh"
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  # This script was piped
+  logFatal "This script cannot be piped"
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  :
+else
+  # This script was executed
+  netdata_test_email
+fi
