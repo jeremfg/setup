@@ -292,10 +292,20 @@ echo "Debug: 0: ${0}"
 echo "Debug: 1: ${1}"
 echo "Debug: 2: ${2}"
 echo "Debug: 3: ${3}"
+echo "Debug: is piped: $(-p /dev/stdin)"
 
-if [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+if [[ -p /dev/stdin ]]; then
+  # This script was piped (possibly after download from wget)
+  echo "Debug: Piped"
+  git_setup "${@}"
+  exit $?
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  echo "Debug: Sourced"
   export -f git_setup
 else
+  # This script was executed
+  echo "Debug: Executed"
   git_setup "${@}"
   exit $?
 fi
