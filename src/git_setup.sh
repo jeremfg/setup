@@ -41,8 +41,14 @@ git_setup() {
 
   # Execute entry point
   if [[ -n "${GS_COMMAND}" ]]; then
+    local res
+
+    pushd "${GS_REPO_DIR}" > /dev/null
     ${GS_COMMAND[@]}
-    return $?
+    res=$?
+    popd > /dev/null
+    
+    return $res
   fi
 
   return 0
@@ -292,7 +298,6 @@ echo "Debug: 0: ${0}"
 echo "Debug: 1: ${1}"
 echo "Debug: 2: ${2}"
 echo "Debug: 3: ${3}"
-echo "Debug: is piped: $(-p /dev/stdin)"
 
 if [[ -p /dev/stdin ]]; then
   # This script was piped (possibly after download from wget)
