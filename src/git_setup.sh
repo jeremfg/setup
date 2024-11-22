@@ -293,24 +293,15 @@ EOF
 ###### Startup logic ######
 ###########################
 
-echo "Debug: BASH_SOURCE[0]: ${BASH_SOURCE[0]}"
-echo "Debug: 0: ${0}"
-echo "Debug: 1: ${1}"
-echo "Debug: 2: ${2}"
-echo "Debug: 3: ${3}"
-
 if [[ -p /dev/stdin ]]; then
-  # This script was piped (possibly after download from wget)
-  echo "Debug: Piped"
+  # This script was piped
   git_setup "${@}"
   exit $?
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
-  echo "Debug: Sourced"
   export -f git_setup
 else
   # This script was executed
-  echo "Debug: Executed"
   git_setup "${@}"
   exit $?
 fi
