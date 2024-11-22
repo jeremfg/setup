@@ -287,6 +287,12 @@ EOF
 ###### Startup logic ######
 ###########################
 
+echo "Debug: BASH_SOURCE[0]: ${BASH_SOURCE[0]}"
+echo "Debug: 0: ${0}"
+echo "Debug: 1: ${1}"
+echo "Debug: 2: ${2}"
+echo "Debug: 3: ${3}"
+
 if [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   export -f git_setup
 else
