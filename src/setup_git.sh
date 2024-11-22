@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# This script is used to setup a git repository on a new environment
+# This script is used to setup an environment, using git as a source
+# Because of this, this script should have no dependencies and work
+# alone, so it can be used in one-liner setup calls like via wget.
 #
 # Currently tested on XCP-ng 8.3 (CentOS)
+# Known to work with git 1.8.3.1
 
 GS_VERSION="0.0.1"
-GS_NAME="git_setup"
+GS_NAME="setup_git"
 
 # Entry point
-git_setup() {
+setup_git() {
   # Keep a copy of entry arguments
   declare -g GS_ARGS=("$@")
 
@@ -295,13 +298,13 @@ EOF
 
 if [[ -p /dev/stdin ]]; then
   # This script was piped
-  git_setup "${@}"
+  setup_git "${@}"
   exit $?
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
-  export -f git_setup
+  export -f setup_git
 else
   # This script was executed
-  git_setup "${@}"
+  setup_git "${@}"
   exit $?
 fi
