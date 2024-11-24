@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# This script is used to setup an environment, using git as a source
-# Because of this, this script should have no dependencies and work
-# alone, so it can be used in one-liner setup calls like via wget.
+# This interactive script is the entry point for setting up an environemnt
+# using git as a source. As such, this script is intended to exist
+# standalone without any dependencies. It is designed to be used
+# as a helper in one-liner setup calls like piped directly from wget.
 #
-# Currently tested on XCP-ng 8.3 (CentOS)
-# Known to work with git 1.8.3.1
+# Example usage:
+# wget -qO- 'https://raw.githubusercontent.com/jeremfg/setup/refs/heads/main/src/git_setup.sh' | bash -s git@github.com:jeremfg/setup.git main -- echo "Done"
+#
+# Currently tested on the following OSes:
+# - XCP-ng 8.3 (CentOS)
+# - Ubuntu 24.04
+# 
+# Known to work with the following versions of git:
+# - 1.8.3.1
+# - 2.43.0
 
-GS_VERSION="0.0.1"
+GS_VERSION="0.1.0"
 GS_NAME="setup_git"
 
 # Entry point
@@ -42,11 +51,21 @@ setup_git() {
     return 1
   fi
 
+  # Cleanup after all operations performed by this script
+  gs_cleanup
+
   # Execute entry point
   if [[ -n "${GS_COMMAND}" ]]; then
     local res
 
     pushd "${GS_REPO_DIR}" > /dev/null
+          cat <<EOF
+======================================
+${GS_NAME} completed execution successfully.
+Now executing the requested command:
+$(pwd)$ ${GS_COMMAND[@]}
+======================================
+EOF
     ${GS_COMMAND[@]}
     res=$?
     popd > /dev/null
@@ -90,9 +109,11 @@ gs_clone_repository() {
       return 1
     fi
     # Fetch the latest changes
+    gs_ssh_credentials
     cd "${repoDir}" && git fetch --all
   else
     # Clone the repository
+    gs_ssh_credentials
     git clone --recursive -b "${GS_GIT_REF}" "${GS_REPO_URL}" "${repoDir}"
     if [[ $? -ne 0 ]]; then
       echo "Failed to clone repository" >&2
@@ -103,6 +124,115 @@ gs_clone_repository() {
 
   declare -g GS_REPO_DIR="${repoDir}"
   return 0
+}
+
+# Trap to cleanup ssh credentials
+gs_cleanup() {
+
+  # Call previous trap
+  if [[ -n "${gs_previous_trap}" ]]; then
+    eval "${gs_previous_trap}"
+    gs_previous_trap=""
+  fi
+
+  # Cleanup SSH credentials
+  if [[ -n "${gs_private_key_file}" ]]; then
+    ssh-add -d "$gs_private_key_file"
+    rm -f "${gs_private_key_file}"
+    gs_private_key_file=""
+  fi
+
+  # Cleanup SSH agent
+  if [[ -n "${gs_ssh_agent_started}" ]]; then
+    ssh-agent -k
+    gs_ssh_agent_started=""
+  fi
+}
+
+gs_ssh_credentials() {
+  declare -g gs_private_key_file
+  declare -g gs_ssh_agent_started
+  declare -g gs_trap_previous
+  declare -g gs_previous_trap
+  local res
+
+  # Check if the URL is an SSH URL
+  if [[ "${GS_REPO_URL}" != "git@"* ]]; then
+    echo "Not an SSH URL: ${GS_REPO_URL}"
+    return 0
+  fi
+
+  # Make sure ssh, ssh-agent and ssh-add are available
+  if ! command -v ssh &> /dev/null; then
+    echo "ssh not found" >&2
+    return 1
+  fi
+  if ! command -v ssh-agent &> /dev/null; then
+    echo "ssh-agent not found" >&2
+    return 1
+  fi
+  if ! command -v ssh-add &> /dev/null; then
+    echo "ssh-add not found" >&2
+    return 1
+  fi
+
+  # Setup exit trap
+  gs_previous_trap=$(trap -p EXIT | sed -n -e 's/^trap -- \(.*\) EXIT$/\1/p')
+  if [[ -n "${gs_previous_trap}" ]]; then
+    echo "Previous trap found: ${gs_previous_trap}"
+  fi
+  trap gs_cleanup EXIT
+  
+  # Make sure SSH agent is running. Start it otherwise
+  if [[ -z "${SSH_AUTH_SOCK}" ]]; then
+    eval "$(ssh-agent -s)"
+    gs_ssh_agent_started="true"
+  else
+    echo "SSH agent already running"
+    gs_ssh_agent_started=""
+  fi
+
+  # Validate if we have SSH credentials
+  gs_private_key_file=""
+  while true; do
+    # Test for connection
+    res=$(ssh -o StrictHostKeyChecking=no -T "${GS_REPO_URL}")
+    if [[ $? -eq 0 ]]; then
+      echo "SSH credentials found"
+      break
+    else
+      echo "No SSH credentials found"
+
+      # Delete SSH key from previous loops
+      if [[ -n "${gs_private_key_file}" ]]; then
+        rm -f "${gs_private_key_file}"
+      fi
+
+      # New key
+      gs_private_key_file=$(mktemp)
+
+      # Ask user for key, read input and write to file
+      cat <<EOF
+======================================
+====== SSH Private key required ======
+======================================
+A valid SSH private key is required to access the following repository:
+${GS_REPO_URL}.
+
+Please paste the private key below, press Enter, than press Ctrl+D to finish.
+______________________________________
+EOF
+      cat > "${gs_private_key_file}"
+      cat <<EOF
+______________________________________
+EOF
+      chmod 600 "${gs_private_key_file}"
+
+      ssh-add "$gs_private_key_file"
+
+      break
+    fi
+  done
 }
 
 gs_identify_os() {
@@ -120,6 +250,10 @@ gs_identify_os() {
       case $curId in 
         centos)
           GS_OS="centos"
+          break
+          ;;
+        ubuntu)
+          GS_OS="ubuntu"
           break
           ;;
         *)
@@ -171,6 +305,25 @@ gs_install_git() {
       else
         echo "Installing git"
         sudo yum install -y git
+        if [[ $? -ne 0 ]]; then
+          echo "Failed to install git" >&2
+          return 1
+        fi
+        if command -v git &> /dev/null; then
+          echo "Git installed successfully"
+        else
+          echo "Git not found after installation" >&2
+          return 1
+        fi
+      fi
+      ;;
+    ubuntu)
+      if command -v git &> /dev/null; then
+        echo "Git already installed"
+      else
+        echo "Installing git"
+        sudo apt-get update -y
+        sudo apt-get install -y git
         if [[ $? -ne 0 ]]; then
           echo "Failed to install git" >&2
           return 1
@@ -277,7 +430,7 @@ gs_print_usage() {
   cat <<EOF
 This script setup a git repository on a fresh environment
 
-Usage: ${GS_NAME} [OPTIONS] <repo_url>  [<git_ref>] [-- <command>]
+Usage: ${GS_NAME} [OPTIONS] <repo_url> [<git_ref>] [-- <command>]
 
 Arguments:
   repo_url     The URL of the git repository to clone
@@ -289,7 +442,6 @@ Options:
   -v, --version  Print the version of this script
 EOF
   return 0
-
 }
 
 ###########################
