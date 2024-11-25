@@ -3,13 +3,10 @@
 #
 # Utilities for manipulating environment variables
 
-ENV_FILE_BACKUP="/tmp/backup.env"
-
 # Backup the current environment variables
 var_backup() {
-  declare -p > ${ENV_FILE_BACKUP}
-  logInfo "Environment variables have been backed up to: ${ENV_FILE_BACKUP}"
-  return 0
+  sg_var_backup
+  return $?
 }
 
 # Append a variable to the current backup
@@ -24,11 +21,11 @@ var_append() {
   local name="$1"
   local value="$2"
 
-  if [[ -f ${ENV_FILE_BACKUP} ]]; then
-    echo "declare -- ${name}=${value}" >> ${ENV_FILE_BACKUP}
+  if [[ -f ${SG_ENV_FILE_BACKUP} ]]; then
+    echo "declare -- ${name}=${value}" >> ${SG_ENV_FILE_BACKUP}
     logInfo "\"${name}\" was appended"
   else
-    logError "No backup file found: ${ENV_FILE_BACKUP}"
+    logError "No backup file found: ${SG_ENV_FILE_BACKUP}"
     return 1
   fi
 
@@ -53,16 +50,8 @@ var_clear() {
 #   0: If variables were restored succesfully
 #   1: If backup was not found
 var_restore() {
-  if [[ ! -f "${ENV_FILE_BACKUP}" ]]; then
-    logError "Backup file does not exist: ${ENV_FILE_BACKUP}"
-    return 1
-  fi
-
-  # Source the backup file to restore the shell variables
-  source "${ENV_FILE_BACKUP}" 2&> /dev/null # Hide complaints about readonly variables
-  logInfo "Shell variables have been restored from: ${ENV_FILE_BACKUP}"
-
-  return 0
+  sg_var_restore
+  return $?
 }
 
 # https://askubuntu.com/a/1463894
@@ -145,6 +134,7 @@ EV_ROOT=$(realpath "${EV_ROOT}/..")
 
 # Import dependencies
 source ${EV_ROOT}/src/slf4sh.sh
+source ${EV_ROOT}/src/setup_git.sh
 
 if [[ -p /dev/stdin ]]; then
   # This script was piped

@@ -19,73 +19,9 @@ os() {
 # Parameters:
 #   $1[out]: Current OS
 os_identify(){
-  local _os="$1"
-  local file_os_release="/etc/os-release"
-  logInfo "Performing OS identification..."
-
-  if [[ -f "${file_os_release}" ]]; then
-    logTrace "Sourcing: ${file_os_release}"
-    var_backup
-    source "${file_os_release}"
-    # Print name and version
-    if [[ -n "${NAME}" && -n "${VERSION}" ]]; then
-      logInfo "Trying to identify ${NAME} Version ${VERSION}"
-    fi
-
-    # Iterate over all values in ID and ID_LIKE, in order
-    local curId
-    for curId in ${ID} ${ID_LIKE}; do
-      case $curId in 
-        centos)
-          eval "$_os='centos'"
-          logInfo "Identified centos"
-          break
-          ;;
-        ubuntu)
-          eval "$_os='ubuntu'"
-          logInfo "Identified ubuntu"
-          break
-          ;;
-        *)
-          logWarn "Unknown OS: ${curId}"
-          ;;
-      esac
-    done
-    var_restore
-    if [[ -z "${_os}" ]]; then
-      return 1
-    else
-      return 0
-    fi
-  else
-    local files_output
-    local releaseFile
-
-    for releaseFile in /etc/*release; do
-        if [[ -f ${releaseFile} ]]; then
-          files_output+="\n=== Contents of ${releaseFile} ===\n"
-          files_output+=$(cat ${releaseFile})
-        fi
-    done
-    logError "No OS information found. File '${file_os_release}' does not exist."
-    logDebug <<EOF
-======================================
-=== Start of available information ===
-======================================
-=== uname -a ===
-$(uname -a)
-
-=== lsb_release -a ===
-$(lsb_release -a)
-
-=== /etc/*release files ===${files_output}
-======================================
-==== End of available information ====
-======================================
-EOF
-  fi
-
-  return 1
+  # Function is maintained in setup_git.sh
+  sg_os_identify "${1}"
+  return $?
 }
 
 ###########################
@@ -108,7 +44,7 @@ OS_ROOT=$(realpath "${OS_ROOT}/..")
 
 # Import dependencies
 source ${OS_ROOT}/src/slf4sh.sh
-source ${OS_ROOT}/src/env.sh
+source ${OS_ROOT}/src/setup_git.sh
 
 if [[ -p /dev/stdin ]]; then
   # This script was piped

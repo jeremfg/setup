@@ -309,7 +309,7 @@ EOF
 #   0: If a key was selected (See $1)
 #   1: If an error occured, and we must proceed without a key
 git_paste_key() {
-  local _prv_key="$1"
+  local _a_key="$1"
   local file
 
   if ! git_next_key_name file "${ssh_dir}" "git_key"; then
@@ -317,23 +317,12 @@ git_paste_key() {
     return 1
   fi
 
-  cat <<EOF
-======================================
-====== SSH Private key required ======
-======================================
-1. Please paste the private key
-2. press [Enter]
-3. Press Ctrl+D to finish.
-______________________________________
-EOF
+  if ! sg_git_paste_key file; then
+    logError "Failed to ask user for pasting his key"
+    return 1
+  fi
 
-  # Read in the private key
-  cat > "${file}"
   eval "$_prv_key='${file}'"
-  cat <<EOF
-______________________________________
-EOF
-  chmod 600 "${file}"
   return 0
 }
 
@@ -392,6 +381,7 @@ DQ_ROOT=$(realpath "${DQ_ROOT}/..")
 # Import dependencies
 source ${DQ_ROOT}/src/slf4sh.sh
 source ${DQ_ROOT}/src/pkg.sh
+source ${DQ_ROOT}/src/setup_git.sh
 
 if [[ -p /dev/stdin ]]; then
   # This script was piped
