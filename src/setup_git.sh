@@ -138,7 +138,7 @@ sg_clone_repository() {
           # Permissions denied? Try another key
           local new_key=$(mktemp)
           SG_KEYS_TO_CLEANUP+=("${new_key}")
-          if ! sg_git_paste_key "${new_key}"; then
+          if ! sg_ssh_paste_key "${new_key}"; then
             sg_print "No key obtained"
             return 1
           fi
@@ -578,7 +578,7 @@ sg_pkg_install_centos() {
 # Returns:
 #   0: If a key was selected (See $1)
 #   1: If an error occured, and we must proceed without a key
-sg_git_paste_key() {
+sg_ssh_paste_key() {
   local _prv_key="$1"
 
   if [[ -z "${_prv_key}" ]]; then

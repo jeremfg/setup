@@ -113,6 +113,36 @@ env_del() {
   fi
 }
 
+# Insert a configuration line if absent
+#
+# Parameters:
+#   $1[in]: Configuration line
+# Returns:
+#   0: If config line is present
+#   1: If we couldn't ensure the config is present
+env_config() {
+  local cfg_line="${1}"
+
+  if [[ -z "${cfg_line}" ]]; then
+    logError "Cannot configure an empty line"
+    return 1
+  fi
+
+  local rcFile=~/.bashrc
+  if ! grep -q "^${cfg_line}\$" "${rcFile}"; then
+    # Configuration line is absent. Add it
+    if ! echo "${cfg_line}" >>"${rcFile}"; then
+      logError "Failed to insert line in configuration"
+      return 1
+    fi
+  fi
+
+  # shellcheck source=../../.bashrc
+  source "${rcFile}"
+
+  return 0
+}
+
 ###########################
 ###### Startup logic ######
 ###########################
