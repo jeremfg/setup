@@ -591,7 +591,8 @@ sg_ssh_paste_key() {
 ====== SSH Private key required ======
 ======================================
 1. Please paste the private key below.
-2. Press Ctrl+D to finish.
+2. Press [Enter] to end on a new l ine.
+3. Press Ctrl+D to finish.
 ______________________________________
 EOF
 
