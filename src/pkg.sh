@@ -35,7 +35,7 @@ PK_ROOT=$(realpath "${PK_ROOT}/..")
 source ${PK_ROOT}/src/slf4sh.sh
 source ${PK_ROOT}/src/os.sh
 
-if [[ -p /dev/stdin ]]; then
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
   echo "ERROR: This script cannot be piped"
   exit 1

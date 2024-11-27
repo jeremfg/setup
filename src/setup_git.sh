@@ -817,7 +817,7 @@ sg_trap_exit() {
 ###### Startup logic ######
 ###########################
 
-if [[ -p /dev/stdin ]]; then
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
   setup_git "${@}"
   exit $?

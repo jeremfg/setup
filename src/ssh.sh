@@ -340,7 +340,7 @@ source ${SS_ROOT}/src/slf4sh.sh
 source ${SS_ROOT}/src/env.sh
 source ${SS_ROOT}/src/setup_git.sh
 
-if [[ -p /dev/stdin ]]; then
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
   echo "ERROR: This script cannot be piped"
   exit 1
