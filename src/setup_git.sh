@@ -591,13 +591,14 @@ sg_ssh_paste_key() {
 ====== SSH Private key required ======
 ======================================
 1. Please paste the private key below.
-2. press [Enter].
-3. Press Ctrl+D to finish.
+2. Press Ctrl+D to finish.
 ______________________________________
 EOF
 
-  # Read in the private key
-  cat > "${_prv_key}"
+  # Read in the private key from /dev/tty
+  local _prv_key_content
+  _prv_key_content=$(cat /dev/tty)
+  echo "${_prv_key_content}" > "${_prv_key}"
   cat <<EOF
 ______________________________________
 EOF
