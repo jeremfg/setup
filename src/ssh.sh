@@ -48,8 +48,10 @@ ssh_agent_install() {
   local config_filename
   config_filename="${root}/${SCRIPT_INSTALL_DIR}/${SSH_INIT_FILE}"
 
-  local file
-  file=$(cat <<EOF
+  # Only create the file if it doesn't exist already
+  if [[ ! -f "${config_filename}" ]]; then
+    local file
+    file=$(cat <<EOF
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
@@ -63,10 +65,14 @@ fi
 
 # Below are keys to be supported
 EOF
-)
+    )
 
-  mkdir -p "$(dirname ${config_filename})"
-  echo "${file}" > "${config_filename}"
+    logInfo "Creating SSH configuration file: ${config_filename}"
+    mkdir -p "$(dirname ${config_filename})"
+    echo "${file}" > "${config_filename}"
+  else
+    logInfo "SSH configuration already present"
+  fi
 
   # Add to .bashrc
   file="source ${config_filename}"

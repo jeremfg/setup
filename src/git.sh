@@ -4,6 +4,8 @@
 # This script is used to configure git
 
 git_install() {
+  logTrace "Configuring git"
+
   if command -v git &> /dev/null; then
     logInfo "Git is already installed"
     return 0
@@ -22,6 +24,78 @@ git_install() {
     fi
   fi
 }
+
+# Interactive configuration for git
+#
+# Parameters:
+#   $1[in]: Directory for the repository
+git_configure() {
+  local repo_dir="$1"
+
+  logTrace "Configuring git"
+  if [[ -z "${repo_dir}" ]]; then
+    if ! git_find_root repo_dir "${GG_ROOT}"; then
+      logError "Failed to find the root of the repository"
+      return 1
+    else
+      logWarn "No repository directory provided. Assuming: ${repo_dir}"
+    fi
+  fi
+
+  if ! git_ssh_config; then
+    logError "Failed to configure SSH access for git"
+    return 1
+  fi
+
+  # Make sure user is configured
+  local cur_user
+  local cur_email
+  cur_user=$(cd "${repo_dir}" && git config user.name)
+  cur_email=$(cd "${repo_dir}" && git config user.email)
+
+  # Ask user if he's happy withy the current user, providing the current as default
+  cat <<EOF
+*******************************
+****** Git Configuration ******
+*******************************
+The following user is currently configured
+
+  ${cur_user} <${cur_email}>
+
+Please change the values if needed (10 seconds timeout)
+EOF
+  local user
+  local email
+  os_ask_user user "Git friendly user" "${cur_user}"
+  os_ask_user email "Git email address" "${cur_email}"
+
+  if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
+    logInfo "Setting git user to: ${user} <${email}>"
+    if ! cd "${repo_dir}" && git config user.name "${user}"; then
+      logError "Failed to set git user"
+      return 1
+    fi
+    if ! cd "${repo_dir}" && git config user.email "${email}"; then
+      logError "Failed to set git email"
+      return 1
+    fi
+  fi
+
+  # Configure push.default to simple, if not already set
+  local push_default
+  push_default=$(cd "${repo_dir}" && git config push.default)
+  if [[ "${push_default}" != "simple" ]]; then
+    logInfo "Setting push.default to simple"
+    if ! cd "${repo_dir}" && git config push.default simple; then
+      logError "Failed to set push.default"
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+
 
 # Search for the parent/root of the top repository,
 # walking up submodules if present

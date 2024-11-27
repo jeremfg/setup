@@ -24,6 +24,35 @@ os_identify(){
   return $?
 }
 
+# Ask user for input
+#
+# Parameters:
+#   $1[out]: Answer
+#   $2[in]: Question to ask
+#   $3[in]: Default value (Optional)
+#   $4[in]: Timout (s) [Default: 10 seconds]
+os_ask_user() {
+  local ans="$1"
+  local question="$2"
+  local default="$3"
+  local -i timeout=${4:-10}
+
+  # Implementation
+  local myvar
+  # Ask user for input
+  if read -t ${timeout} -p "${question} [${default}]: " myvar; then
+    if [[ -z "${myvar}" ]]; then
+      eval "$ans='${default}'"
+    else
+      eval "$ans='${myvar}'"
+    fi
+  else
+    echo ""
+    eval "$ans='${default}'"
+  fi
+  return 0
+}
+
 ###########################
 ###### Startup logic ######
 ###########################

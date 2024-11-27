@@ -132,9 +132,11 @@ env_config() {
   if ! grep -q "^${cfg_line}\$" "${rcFile}"; then
     # Configuration line is absent. Add it
     if ! echo "${cfg_line}" >>"${rcFile}"; then
-      logError "Failed to insert line in configuration"
+      logError "Failed to insert line in configuration: ${cfg_line}"
       return 1
     fi
+  else
+    logInfo "Configuration line already present: ${cfg_line}"
   fi
 
   # shellcheck source=../../.bashrc
