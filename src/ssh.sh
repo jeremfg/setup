@@ -60,7 +60,7 @@ ssh_agent_install() {
 
 # Make sure the ssh agent is running
 if [[ -z "\${SSH_AUTH_SOCK}" ]]; then
-  eval "\$(ssh-agent -s)"
+  eval "\$(ssh-agent)"
 fi
 
 # Below are keys to be supported
