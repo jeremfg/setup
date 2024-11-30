@@ -47,6 +47,11 @@ git_configure() {
     return 1
   fi
 
+  if ! pushd "${repo_dir}" > /dev/null; then
+    logError "Failed to change directory to ${repo_dir}"
+    return 1
+  fi
+
   # Make sure user is configured
   local cur_user
   local cur_email
@@ -71,27 +76,72 @@ EOF
 
   if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
     logInfo "Setting git user to: ${user} <${email}>"
-    if ! cd "${repo_dir}" && git config user.name "${user}"; then
+  fi
+  if [[ "${cur_user}" != "${user}" ]]; then
+    if ! git config user.name "${user}"; then
       logError "Failed to set git user"
+      popd > /dev/null
       return 1
     fi
-    if ! cd "${repo_dir}" && git config user.email "${email}"; then
+  fi
+  if [[ "${cur_email}" != "${email}" ]]; then
+    if ! git config user.email "${email}"; then
       logError "Failed to set git email"
+      popd > /dev/null
       return 1
     fi
   fi
 
   # Configure push.default to simple, if not already set
   local push_default
-  push_default=$(cd "${repo_dir}" && git config push.default)
+  push_default=$(git config push.default)
   if [[ "${push_default}" != "simple" ]]; then
     logInfo "Setting push.default to simple"
-    if ! cd "${repo_dir}" && git config push.default simple; then
+    if ! git config push.default simple; then
       logError "Failed to set push.default"
+      popd > /dev/null
       return 1
     fi
   fi
 
+  # Apply configurations to all submodules
+  user="${user}" email="${email}" git submodule foreach '
+    cur_user=$(git config user.name)
+    cur_email=$(git config user.email)
+
+    if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
+      echo "Setting git user to: ${user} <${email}> in submodule ${name}"
+    fi
+    if [[ "${cur_user}" != "${user}" ]]; then
+      if ! git config user.name "${user}"; then
+        echo "Failed to set git user in submodule ${name}"
+        exit 1
+      fi
+    fi
+    if [[ "${cur_email}" != "${email}" ]]; then
+      if ! git config user.email "${email}"; then
+        echo "Failed to set git email in submodule ${name}"
+        exit 1
+      fi
+    fi
+
+    push_default=$(git config push.default)
+    if [[ "${push_default}" != "simple" ]]; then
+      echo "Setting push.default to simple in submodule ${name}"
+      if ! git config push.default simple; then
+        echo "Failed to set push.default in submodule ${name}"
+        exit 1
+      fi
+    fi
+  '
+
+  if [[ $? -ne 0 ]]; then
+    logError "Failed to apply git configuration to submodules"
+    popd > /dev/null
+    return 1
+  fi
+
+  popd > /dev/null
   return 0
 }
 
@@ -198,15 +248,17 @@ git_ssh_config() {
 
   # Cleanup keys
   for key in ${keys_to_clean}; do
-    if ! ssh-add -d "${key}"; then
-      logWarn "Could not unregister key: ${key}"
-    fi
-    if ! rm -f "${key}"; then
-      logWarn "Failure to delete private key ${key}"
-    fi
-    if ! rm -f "${key}.pub"; then
-      logWarn "Failure to delete private key ${key}.pub"
-    fi
+	if [[ $res -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
+	  if ! ssh-add -d "${key}"; then
+	    logWarn "Could not unregister key: ${key}"
+	  fi
+	  if ! rm -f "${key}"; then
+	    logWarn "Failure to delete private key ${key}"
+	  fi
+	  if ! rm -f "${key}.pub"; then
+	    logWarn "Failure to delete private key ${key}.pub"
+	  fi
+	fi
   done
   keys_to_clean=()
 

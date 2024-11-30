@@ -214,7 +214,7 @@ EOF
   # Read user input
   local choice
   while true; do
-    read -rp "Enter the number of your choice: " choice
+    read -rp "Enter the number of your choice: " choice < /dev/tty
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
       logInfo "User chose option ${choice}: ${options[choice - 1]}"
       break;
@@ -251,6 +251,9 @@ EOF
       ;;
     *)
       local ssh_file="${ssh_files[$((choice - 4))]}"
+	  if ! chmod 0600 ${ssh_file}; then
+	    logError "Failed to change permissions on key file"
+	  fi
       logInfo "User chose to use existing private key: ${ssh_file}"
       eval "$private_key='${ssh_file}'"
       return 0
@@ -274,7 +277,7 @@ ssh_generate_keypair() {
   local regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
   # Ask for email address
-  read -rp "Enter your email address: " email
+  os_ask_user email "Your email address" "" 65535
   if [[ -z "${email}" ]]; then
     echo "Error: Email address cannot be empty" >&2
     return 1
@@ -301,7 +304,7 @@ $(cat "${_prv_key}.pub")
 Press [Enter] when you are done registering your key
 EOF
     # Wait for user to press Enter
-    read
+    read < /dev/tty
     fi
   else
     echo "Error: This is not a valid email address" >&2
@@ -344,6 +347,7 @@ SS_ROOT=$(realpath "${SS_ROOT}/..")
 # Import dependencies
 source ${SS_ROOT}/src/slf4sh.sh
 source ${SS_ROOT}/src/env.sh
+source ${SS_ROOT}/src/os.sh
 source ${SS_ROOT}/src/setup_git.sh
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

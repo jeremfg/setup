@@ -39,8 +39,16 @@ os_ask_user() {
 
   # Implementation
   local myvar
-  # Ask user for input
-  if read -t ${timeout} -p "${question} [${default}]: " myvar; then
+  local res
+  # Ask user for input, using timeout if default value is not empty
+  if [[ -z "${default}" ]]; then
+    read -p "${question} [${default}]: " myvar < /dev/tty
+    res=$?
+  else
+    read -t ${timeout} -p "${question} [${default}]: " myvar < /dev/tty
+    res=$?
+  fi
+  if [[ $res -eq 0 ]]; then
     if [[ -z "${myvar}" ]]; then
       eval "$ans='${default}'"
     else

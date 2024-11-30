@@ -117,7 +117,7 @@ EOF
   # Read user input
   local choice
   while true; do
-    read -rp "Enter the number of your choice: " choice
+    read -rp "Enter the number of your choice: " choice < /dev/tty
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
       logInfo "User chose option ${choice}: ${options[choice - 1]}"
       break;
