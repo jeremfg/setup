@@ -60,7 +60,7 @@ ssh_agent_install() {
 
 # Make sure the ssh agent is running
 if [[ -z "\${SSH_AUTH_SOCK}" ]]; then
-  eval "\$(ssh-agent)"
+  eval "\$(ssh-agent)" > /dev/null 2>&1
 fi
 
 # Below are keys to be supported
@@ -102,7 +102,7 @@ ssh_key_install() {
 
   # Build configuration line
   local cf_line
-  cf_line="ssh-add ${key}"
+  cf_line="ssh-add ${key} > /dev/null 2>&1"
 
   if [[ ! -f "${config_filename}" ]]; then
     if ! ssh_agent_install; then

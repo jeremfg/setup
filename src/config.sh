@@ -13,12 +13,17 @@
 config_load() {
   local _config_file="$1"
   if [[ -f "${_config_file}" ]]; then
-    # shellcheck source=.config/project-config.env
-    source "${_config_file}"
-    echo "Settings loaded from --> ${_config_file}"
+    # The file might be encrypted
+    if sops --input-type dotenv --output-type dotenv -d "${_config_file}" &> /dev/null; then
+      source <(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
+      logInfo "Settings loaded from encrypted ${_config_file}"
+    else
+      source "${_config_file}"
+      logInfo "Settings loaded from ${_config_file}"
+    fi
     return 0
   else
-    echo "Configuration file not found: ${_config_file}"
+    logError "Configuration file not found: ${_config_file}"
     return 1
   fi
 }
@@ -53,41 +58,83 @@ config_save() {
     return 1
   fi
 
+  # Check if the file is encrypted
+  if sops --input-type dotenv --output-type dotenv -d "${_config_file}" &> /dev/null; then
+    # File is encrypted, decrypt it to a variable
+    _content=$(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
+  else
+    # File is not encrypted, read it into a variable
+    _content=$(cat "${_config_file}")
+  fi
+
   # If no value is provided, delete the configuration
   if [[ -z "${_value}" ]]; then
-    if ! sed -i "/^${_config}=/d" "${_config_file}"; then
+    logInfo "Deleting configuration: ${_config}"
+    if grep -q "${_config}=" <<<"${_content}"; then
+      _content=$(echo "${_content}" | sed "/^${_config}=.*/d")
+    else
+      logWarn "Configuration does not exist: ${_config}"
+      return 0
+    fi
+    if [[ $? -ne 0 ]]; then
       logError "Failed to delete configuration: ${_config}"
       return 1
     fi
-    return 0
-  fi
+  else
+    # If value contains spaces, wrap it in quotes
+    if [[ "${_value}" == *" "* ]]; then
+      _value="\"${_value}\""
+    fi
 
-  # If value contains spaces, wrap it in quotes
-  if [[ "${_value}" == *" "* ]]; then
-    _value="\"${_value}\""
-  fi
-
-  # Save configuration to config file
-  if [[ -f "${_config_file}" ]]; then
-    if grep -q "${_config}=" "${_config_file}"; then
-      if ! sed -i "s|${_config}=.*|${_config}=${_value}|" "${_config_file}"; then
+    # Add or update the config in _content
+    if grep -q "${_config}=" <<<"${_content}"; then
+      logInfo "Updating configuration: ${_config}"
+      _content=$(echo "${_content}" | sed "s|${_config}=.*|${_config}=${_value}|")
+      if [[ $? -ne 0 ]]; then
         logError "Failed to update configuration: ${_config}"
         return 1
       fi
     else
-      if ! echo "${_config}=${_value}" >>"${_config_file}"; then
+      logInfo "Adding configuration: ${_config}"
+      _content=$(echo -e "${_content}\n${_config}=${_value}")
+      if [[ $? -ne 0 ]]; then
         logError "Failed to add configuration: ${_config}"
         return 1
       fi
+    fi
+  fi
+
+  # Save configuration to config file
+  if [[ -f  "${_config_file}" ]]; then
+    if sops --input-type dotenv --output-type dotenv -d "${_config_file}" &> /dev/null; then
+       echo "${_content}" | sops --input-type dotenv --output-type dotenv -e /dev/stdin > "${_config_file}"
+      if [[ $? -ne 0 ]]; then
+        logError "Failed to write encrypted configuration"
+        return 1
+      fi
+      logInfo "Settings saved encrypted into ${_config_file}"
+    else
+      echo "${_content}" > "${_config_file}"
+      if [[ $? -ne 0 ]]; then
+        logError "Failed to write configuration"
+        return 1
+      fi
+      logInfo "Settings saved into ${_config_file}"
     fi
   else
     if ! mkdir -p "$(dirname "${_config_file}")"; then
       logError "Failed to create directory: $(dirname "${_config_file}")"
       return 1
     fi
-    echo "${_config}=${_value}" >"${_config_file}"
+    # Do not encrypt by default
+    echo "${_content}" > "${_config_file}"
+    if [[ $? -ne 0 ]]; then
+      logError "Failed to write configuration"
+      return 1
+    fi
+    logInfo "Settings saved into newly created ${_config_file}"
   fi
-  logInfo "Settings saved into --> ${_config_file}"
+
   return 0
 }
 

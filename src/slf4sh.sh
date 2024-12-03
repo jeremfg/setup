@@ -116,7 +116,7 @@ sl_init() {
     # Walk-up the tree to exit any potential git repository
     while true; do
       # Check if parent is inside a git repository
-      if cd "${curDir}/.." && git rev-parse --is-inside-work-tree &> /dev/null; then
+      if $(cd "${curDir}/.." && git rev-parse --is-inside-work-tree &> /dev/null); then
         curDir="$(cd "${curDir}/.." && git rev-parse --show-toplevel)"
         curDir="$(realpath ${curDir})"
       else
