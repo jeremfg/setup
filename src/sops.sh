@@ -127,6 +127,6 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  sops_install "${@}"
-  exit $?
+  echo "ERROR: This script cannot be exceuted"
+  exit 1
 fi
