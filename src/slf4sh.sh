@@ -36,44 +36,44 @@ logSetLevel() {
 
 logFatal() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_FATAL} ]]; then
-    log "FATAL " "$1"
+    log "FATAL " "$@"
   fi
     exit 1
 }
 
 logError() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_ERROR} ]]; then
-    log "ERROR " "$1"
+    log "ERROR " "$@"
   fi
 }
 
 logWarn() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_WARN} ]]; then
-    log "WARN  " "$1"
+    log "WARN  " "$@"
   fi
 }
 
 logInfo() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_INFO} ]]; then
-    log "INFO  " "$1"
+    log "INFO  " "$@"
   fi
 }
 
 logDebug() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_DEBUG} ]]; then
-    log "DEBUG " "$1"
+    log "DEBUG " "$@"
   fi
 }
 
 logTrace() {
   if [[ "${LOG_LEVEL}" -le ${LEVEL_TRACE} ]]; then
-    log "TRACE " "$1"
+    log "TRACE " "$@"
   fi
 }
 
 logTest() {
     if [[ "${LOG_LEVEL}" -le ${LEVEL_TEST} ]]; then
-        log "TEST  " "$1"
+        log "TEST  " "$@"
   fi
 }
 
@@ -85,21 +85,24 @@ log() {
   time=$(date +%H:%M:%S)
   full="${date} ${time}"
 
+  local level="$1"
+  shift
+
   local out_line
-  if [[ -z "$2" ]]; then
+  if [[ -z "$@" ]]; then
     local line
     out_line="(message from pipe follows below)"
     while IFS= read -r line; do
       out_line+="\n$line"
     done
   else
-    out_line="$2"
+    out_line="$@"
   fi
 
   if [[ "${LOG_CONSOLE}" == 1 ]]; then
-    echo -e "${full} $1$out_line"
+    echo -e "${full} $level$out_line"
   else
-    echo -e "${full} $1$out_line" >> "${SL_LOGFILE}"
+    echo -e "${full} $level$out_line" >> "${SL_LOGFILE}"
   fi
 }
 
