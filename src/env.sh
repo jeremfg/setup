@@ -135,14 +135,8 @@ env_config() {
   fi
 
   local rcFile=~/.bashrc
-  if ! grep -q "^${cfg_line}\$" "${rcFile}"; then
-    # Configuration line is absent. Add it
-    if ! echo "${cfg_line}" >>"${rcFile}"; then
-      logError "Failed to insert line in configuration: ${cfg_line}"
-      return 1
-    fi
-  else
-    logInfo "Configuration line already present: ${cfg_line}"
+  if ! os_add_config "${rcFile}" "${cfg_line}"; then
+    return 1
   fi
 
   # shellcheck source=../../.bashrc
@@ -172,6 +166,7 @@ EV_ROOT=$(realpath "${EV_ROOT}/..")
 
 # Import dependencies
 source ${EV_ROOT}/src/slf4sh.sh
+source ${EV_ROOT}/src/os.sh
 source ${EV_ROOT}/src/setup_git.sh
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
