@@ -3,6 +3,12 @@
 #
 # SSH confiuration utilities
 
+if [[ -z ${GUARD_SSH_SH} ]]; then
+  GUARD_SSH_SH=1
+else
+  return
+fi
+
 SCRIPT_INSTALL_DIR="bin"
 SSH_INIT_FILE="ssh_init.sh"
 SSH_DIR="${HOME}/.ssh"

@@ -3,6 +3,12 @@
 #
 # This script is used to configure python
 
+if [[ -z ${GUARD_PYTHON_SH} ]]; then
+  GUARD_PYTHON_SH=1
+else
+  return
+fi
+
 python_install() {
   if command -v pip3 &>/dev/null; then
     logInfo "pip is already installed"

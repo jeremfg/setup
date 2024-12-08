@@ -3,6 +3,12 @@
 #
 # This script is used to configure git
 
+if [[ -z ${GUARD_GIT_SH} ]]; then
+  GUARD_GIT_SH=1
+else
+  return
+fi
+
 git_install() {
   logTrace "Configuring git"
 

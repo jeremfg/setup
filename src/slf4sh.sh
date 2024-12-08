@@ -4,6 +4,12 @@
 # Source this into any shell script you wish to add logging support.
 # Inspired From: https://serverfault.com/a/103569
 
+if [[ -z ${GUARD_SLF4SH_SH} ]]; then
+  GUARD_SLF4SH_SH=1
+else
+  return
+fi
+
 # LEVEL_ALL appears unused. Verify use (or export if used externally).
 # LEVEL_OFF appears unused. Verify use (or export if used externally).
 # shellcheck disable=2034

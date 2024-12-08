@@ -3,6 +3,12 @@
 #
 # This script is used to configure SOPS
 
+if [[ -z ${GUARD_SOPS_SH} ]]; then
+  GUARD_SOPS_SH=1
+else
+  return
+fi
+
 # Install SOPS (if not already installed)
 #
 # Parameters:

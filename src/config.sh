@@ -3,6 +3,12 @@
 #
 # This script is used to manipulate dotenv configuration files
 
+if [[ -z ${GUARD_CONFIG_SH} ]]; then
+  GUARD_CONFIG_SH=1
+else
+  return
+fi
+
 # Load all configurations from specified file
 #
 # Parameters:
@@ -70,7 +76,7 @@ config_save() {
   # If no value is provided, delete the configuration
   if [[ -z "${_value}" ]]; then
     logInfo "Deleting configuration: ${_config}"
-    if grep -q "${_config}=" <<<"${_content}"; then
+    if grep -q "^${_config}=" <<<"${_content}"; then
       _content=$(echo "${_content}" | sed "/^${_config}=.*/d")
     else
       logWarn "Configuration does not exist: ${_config}"
@@ -87,9 +93,9 @@ config_save() {
     fi
 
     # Add or update the config in _content
-    if grep -q "${_config}=" <<<"${_content}"; then
+    if grep -q "^${_config}=" <<<"${_content}"; then
       logInfo "Updating configuration: ${_config}"
-      _content=$(echo "${_content}" | sed "s|${_config}=.*|${_config}=${_value}|")
+      _content=$(echo "${_content}" | sed "s|^${_config}=.*|${_config}=${_value}|")
       if [[ $? -ne 0 ]]; then
         logError "Failed to update configuration: ${_config}"
         return 1

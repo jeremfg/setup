@@ -3,6 +3,12 @@
 #
 # This script is used to configure OS packages
 
+if [[ -z ${GUARD_PKG_SH} ]]; then
+  GUARD_PKG_SH=1
+else
+  return
+fi
+
 # Install the package specified (if not already installed)
 #
 # Parameters:

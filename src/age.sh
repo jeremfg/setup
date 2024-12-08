@@ -3,6 +3,12 @@
 #
 # This script is used to configure AGE
 
+if [[ -z ${GUARD_AGE_SH} ]]; then
+  GUARD_AGE_SH=1
+else
+  return
+fi
+
 # Install AGE (if not already installed)
 #
 # Parameters:

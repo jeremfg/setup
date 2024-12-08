@@ -3,6 +3,12 @@
 #
 # Utilities for manipulating environment variables
 
+if [[ -z ${GUARD_ENV_SH} ]]; then
+  GUARD_ENV_SH=1
+else
+  return
+fi
+
 # Backup the current environment variables
 var_backup() {
   sg_var_backup

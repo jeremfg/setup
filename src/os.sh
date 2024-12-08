@@ -3,6 +3,12 @@
 #
 # This script is used to identify the OS
 
+if [[ -z ${GUARD_OS_SH} ]]; then
+  GUARD_OS_SH=1
+else
+  return
+fi
+
 os() {
   local myvar
   local res
