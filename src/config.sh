@@ -22,11 +22,10 @@ config_load() {
     local _content
     # The file might be encrypted
     if sops --input-type dotenv --output-type dotenv -d "${_config_file}" &> /dev/null; then
-    _content=$(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
+      _content=$(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
       logInfo "Read from encrypted ${_config_file}"
     else
       _content=$(cat "${_config_file}")
-      cat "${_config_file}"
       logInfo "Read from ${_config_file}"
     fi
     # Parse special value @GIT_ROOT@
@@ -38,9 +37,13 @@ config_load() {
         logError "Failed to find the root of the repository, required by ${_config_file}"
         return 1
       fi
-      _content="${_content//"@GIT_ROOT@"/"${git_root}"}"
+      _content="${_content//"@GIT_ROOT@"/${git_root}}"
     fi
-    # Source _content to make the variables available
+    logDebug <<EOF
+Loading the following:
+
+${_content}"
+EOF
     source <(echo "${_content}")
     return 0
   else
