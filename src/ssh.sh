@@ -9,10 +9,6 @@ else
   return
 fi
 
-SCRIPT_INSTALL_DIR="bin"
-SSH_INIT_FILE="ssh_init.sh"
-SSH_DIR="${HOME}/.ssh"
-
 # Test connection to SSH server, making sure credentials are good
 #
 # Parameters:
@@ -44,15 +40,13 @@ ssh_agent_install() {
     logError "ssh-add not found"
     return 1
   fi
-
-  # Determine end location
-  local root
-  if ! git_find_root root "${SS_ROOT}"; then
-    logError "Failed to retrieve the git root"
+  if [[ -z "${CONFIG_DIR}" ]]; then
+    logError "CONFIG_DIR is not set"
     return 1
   fi
+
   local config_filename
-  config_filename="${root}/${SCRIPT_INSTALL_DIR}/${SSH_INIT_FILE}"
+  config_filename="${CONFIG_DIR}/${SSH_INIT_FILE}"
 
   # Only create the file if it doesn't exist already
   if [[ ! -f "${config_filename}" ]]; then
@@ -97,14 +91,13 @@ EOF
 ssh_key_install() {
   local key="${1}"
 
-  # Determine end location
-  local root
-  if ! git_find_root root "${SS_ROOT}"; then
-    logError "Failed to retrieve the git root"
+  if [[ -z "${CONFIG_DIR}" ]]; then
+    logError "CONFIG_DIR is not set"
     return 1
   fi
+
   local config_filename
-  config_filename="${root}/${SCRIPT_INSTALL_DIR}/${SSH_INIT_FILE}"
+  config_filename="${CONFIG_DIR}/${SSH_INIT_FILE}"
 
   # Build configuration line
   local cf_line
@@ -331,6 +324,10 @@ ssh_paste_key() {
   sg_ssh_paste_key "${1}"
   return $?
 }
+
+# Constants
+SSH_INIT_FILE="ssh_init.sh"
+SSH_DIR="${HOME}/.ssh"
 
 ###########################
 ###### Startup logic ######

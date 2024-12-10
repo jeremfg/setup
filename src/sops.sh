@@ -17,6 +17,10 @@ sops_install() {
     logInfo "SOPS is already installed"
     return 0
   fi
+  if [[ -z "${DOWNLOAD_DIR}" ]]; then
+    logError "DOWNLOAD_DIR is not set"
+    return 1
+  fi
 
   logTrace "Installing SOPS"
   local cur_os
@@ -42,26 +46,16 @@ sops_install() {
 sops_install_ubuntu() {
   local url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
   local installer="$(basename ${url})"
-  local location
-  if git_find_root location "${SO_ROOT}"; then
-    location="${location}/bin/downloads/${installer}"
-    if [[ ! -f "${location}" ]]; then
-      if ! mkdir -p "$(dirname ${location})"; then
-        logError "Failed to create directory for SOPS installer"
-        return 1
-      fi
-      logTrace "Downloading into ${location} from ${url}"
-      if ! curl -sSL -o "${location}" "${url}"; then
-        logError "Failed to download SOPS installer"
-        return 1
-      fi
-    fi
-    if ! sudo apt install -y ${location}; then
-      logError "Failed to install SOPS"
+  local location="${DOWNLOAD_DIR}/${installer}"
+  if [[ ! -f "${location}" ]]; then
+    logTrace "Downloading into ${location} from ${url}"
+    if ! curl -sSL -o "${location}" "${url}"; then
+      logError "Failed to download SOPS installer"
       return 1
     fi
-  else
-    logError "Failed to find the root of the repository"
+  fi
+  if ! sudo apt install -y ${location}; then
+    logError "Failed to install SOPS"
     return 1
   fi
 }
@@ -69,26 +63,20 @@ sops_install_ubuntu() {
 sops_install_centos() {
   local url="${SOPS_URL_BASE}${SOPS_REDHAT}"
   local installer="$(basename ${url})"
-  local location
-  if git_find_root location "${SO_ROOT}"; then
-    location="${location}/bin/downloads/${installer}"
-    if [[ ! -f "${location}" ]]; then
-      if ! mkdir -p "$(dirname ${location})"; then
-        logError "Failed to create directory for SOPS installer"
-        return 1
-      fi
-      logTrace "Downloading into ${location} from ${url}"
-      if ! curl -sSLo "${location}" "${url}"; then
-        logError "Failed to download SOPS installer"
-        return 1
-      fi
-    fi
-    if ! sudo yum install -y ${location}; then
-      logError "Failed to install SOPS"
+  local location="${DOWNLOAD_DIR}/${installer}"
+  if [[ ! -f "${location}" ]]; then
+    if ! mkdir -p "$(dirname ${location})"; then
+      logError "Failed to create directory for SOPS installer"
       return 1
     fi
-  else
-    logError "Failed to find the root of the repository"
+    logTrace "Downloading into ${location} from ${url}"
+    if ! curl -sSLo "${location}" "${url}"; then
+      logError "Failed to download SOPS installer"
+      return 1
+    fi
+  fi
+  if ! sudo yum install -y ${location}; then
+    logError "Failed to install SOPS"
     return 1
   fi
 }

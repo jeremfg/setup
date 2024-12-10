@@ -19,14 +19,29 @@ fi
 config_load() {
   local _config_file="$1"
   if [[ -f "${_config_file}" ]]; then
+    local _content
     # The file might be encrypted
     if sops --input-type dotenv --output-type dotenv -d "${_config_file}" &> /dev/null; then
-      source <(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
-      logInfo "Settings loaded from encrypted ${_config_file}"
+    _content=$(sops --input-type dotenv --output-type dotenv -d "${_config_file}")
+      logInfo "Read from encrypted ${_config_file}"
     else
-      source "${_config_file}"
-      logInfo "Settings loaded from ${_config_file}"
+      _content=$(cat "${_config_file}")
+      cat "${_config_file}"
+      logInfo "Read from ${_config_file}"
     fi
+    # Parse special value @GIT_ROOT@
+    if grep -q "@GIT_ROOT@" <<<"${_content}"; then
+      # We need git root to replace @GIT_ROOT@ in _content
+      source ${CF_ROOT}/src/git.sh
+      local git_root
+      if ! git_find_root git_root "${CF_ROOT}"; then
+        logError "Failed to find the root of the repository, required by ${_config_file}"
+        return 1
+      fi
+      _content="${_content//"@GIT_ROOT@"/"${git_root}"}"
+    fi
+    # Source _content to make the variables available
+    source <(echo "${_content}")
     return 0
   else
     logError "Configuration file not found: ${_config_file}"

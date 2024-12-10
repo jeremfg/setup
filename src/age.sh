@@ -17,59 +17,60 @@ age_install() {
     logInfo "AGE is already installed"
     return 0
   fi
+  if [[ -z "${DOWNLOAD_DIR}" ]]; then
+    logError "DOWNLOAD_DIR is not set"
+    return 1
+  fi
+  if [[ -z "${BIN_DIR}" ]]; then
+    logError "BIN_DIR is not set"
+    return 1
+  fi
 
   local url="${AGE_URL}"
   local installer="$(basename ${url})"
-  local location
-  local bindir
-  if git_find_root location "${AG_ROOT}"; then
-    bindir="${location}/bin"
-    location="${bindir}/downloads/${installer}"
-    if [[ ! -f "${location}" ]]; then
-      if ! mkdir -p "$(dirname ${location})"; then
-        logError "Failed to create directory for AGE archive"
-        return 1
-      fi
-      logTrace "Downloading into ${location} from ${url}"
-      if ! curl -sSL -o "${location}" "${url}"; then
-        logError "Failed to download age archive"
-        return 1
-      fi
-    fi
-    if ! tar -xvf "${location}" -C "${bindir}"; then
-      logFatal "Failed to extract age"
-    fi
+  local location="${DOWNLOAD_DIR}/${installer}"
 
-    # For all binary files create a simlink in the bin directory
-    local binfile
-    for binfile in "${bindir}/age"/*; do
-      if [[ -x "${binfile}" ]]; then
-        local sim_file="${HOME}/bin/$(basename ${binfile})"
-        if ! mkdir -p "${HOME}/bin"; then
-          logError "Failed to create directory for binaries"
+  if [[ ! -f "${location}" ]]; then
+    if ! mkdir -p "$(dirname ${location})"; then
+      logError "Failed to create directory for AGE archive"
+      return 1
+    fi
+    logTrace "Downloading into ${location} from ${url}"
+    if ! curl -sSL -o "${location}" "${url}"; then
+      logError "Failed to download age archive"
+      return 1
+    fi
+  fi
+  if ! tar -xvf "${location}" -C "${BIN_DIR}"; then
+    logFatal "Failed to extract age"
+  fi
+
+  # For all binary files create a simlink in the bin directory
+  local binfile
+  for binfile in "${BIN_DIR}/age"/*; do
+    if [[ -x "${binfile}" ]]; then
+      local sim_file="${HOME}/bin/$(basename ${binfile})"
+      if ! mkdir -p "${HOME}/bin"; then
+        logError "Failed to create directory for binaries"
+        return 1
+      fi
+      if [[ ! -L "${sim_file}" ]]; then
+        logTrace "Creating symlink: ${sim_file}"
+        if ! ln -s "${binfile}" "${sim_file}"; then
+          logError "Failed to create symlink"
           return 1
         fi
-        if [[ ! -L "${sim_file}" ]]; then
-          logTrace "Creating symlink: ${sim_file}"
-          if ! ln -s "${binfile}" "${sim_file}"; then
-            logError "Failed to create symlink"
-            return 1
-          fi
-        fi
       fi
-    done
-
-    # Confirm age is working
-    if ! command -v age &>/dev/null; then
-      logError "Failed to install AGE"
-      return 1
-    else
-      logInfo "AGE installation detected"
-      return 0
     fi
-  else
-    logError "Failed to find the root of the repository"
+  done
+
+  # Confirm age is working
+  if ! command -v age &>/dev/null; then
+    logError "Failed to install AGE"
     return 1
+  else
+    logInfo "AGE installation detected"
+    return 0
   fi
 }
 
