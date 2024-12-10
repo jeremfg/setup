@@ -18,11 +18,11 @@ mail_configure_prerequisites() {
   if ! command -v sops &>/dev/null; then
     logError "SOPS is required"
   fi
-  if [[ -z ${BIN_DIR} ]]; then
+  if [[ -z "${BIN_DIR}" ]]; then
     logError "BIN_DIR is not set"
     return 1
   fi
-  if [[ -z ${CONFIG_DIR} ]]; then
+  if [[ -z "${CONFIG_DIR}" ]]; then
     logError "CONFIG_DIR is not set"
     return 1
   fi
@@ -62,16 +62,18 @@ mail_configure() {
 
   # We have everything we need. Configure...
   # If encrypted, decrypt it
-  if sops --input-type dotenv --output-type dotenv -d  "${conf_client}" &>/dev/null; then
+  if sops -d --input-type dotenv --output-type dotenv "${conf_client}" &>/dev/null; then
     if ! sops -d --input-type dotenv --output-type dotenv "${conf_client}" > "${conf_client_dest}"; then
       logError "Failed to install an encrypted mail configuration"
       return 1
     fi
+    logInfo "Installed encrypted mail configuration"
   else
     if ! cp "${conf_client}" "${conf_client_dest}"; then
       logError "Failed to copy mail configuration"
       return 1
     fi
+    logInfo "Installed mail configuration"
   fi
   
   # Add include guard to email config
@@ -238,7 +240,7 @@ mail_test() {
 
 # Entry point when executed
 mail_main() {
-  if ! mail_is_supported(); then
+  if ! mail_is_supported; then
     logError "Cannot configure emails on this system"
     return 1
   fi
@@ -283,7 +285,6 @@ mail_is_supported() {
   elif [[ ! -L "${res}" ]]; then
     logError "mail command is not a symlink"
     return 1
-  fi
   else
     MAIL_CMD="${res}"
   fi
@@ -337,6 +338,10 @@ mail_parse() {
         shift
         MAIL_BODY="$1"
         ;;
+      --)
+        shift
+        break
+        ;;
       *)
         logError "Invalid argument: $1"
         mail_print_usage
@@ -358,8 +363,10 @@ mail_parse() {
     elif [[ "${MAIL_SUBCMD}" == "configure" ]]; then
       if [[ -z "${CLIENT_CFG}" ]]; then
         declare -g CLIENT_CFG="${1}"
+        shift
       elif [[ -z "${MTA_CFG}" ]]; then
         declare -g MTA_CFG="${1}"
+        shift
       else
         logError "Too many arguments. Parsed: ${1}"
         mail_print_usage
@@ -462,6 +469,7 @@ MX_ROOT=$(realpath "${MX_ROOT}/..")
 
 # Import dependencies
 source ${MX_ROOT}/src/slf4sh.sh
+source ${MX_ROOT}/src/config.sh
 source ${MX_ROOT}/src/git.sh
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
@@ -473,7 +481,7 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  [[ -p /dev/stdin ]]; then # This script received input from a pipe
+  if [[ -p /dev/stdin ]]; then # This script received input from a pipe
     MX_PIPED_ARG=$(cat)
   fi
   mail_main "${@}"
