@@ -116,7 +116,17 @@ EOF
       return 1
     fi
   fi
+  logTrace "Using ssmtp configuration: ${conf_ssmtp}"
 
+  # Retrieve the configuration values
+  if config_load "${conf_mta}"; then
+    logInfo "Loaded MTA configuration"
+  else
+    logError "Failed to load MTA configuration"
+    return 1
+  fi
+
+  # Configure ssmtp
   if config_save "${conf_ssmtp}" "mailhub" "${SSMTP_HUB}"; then
     logInfo "Configured mailhub"
   else
