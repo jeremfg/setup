@@ -42,7 +42,7 @@ config_load() {
     logDebug <<EOF
 Loading the following:
 
-${_content}"
+${_content}
 EOF
     source <(echo "${_content}")
     return 0
