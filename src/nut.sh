@@ -10,7 +10,10 @@ else
 fi
 
 nut_setup() {
-  
+  if ! pkg_install_from "epel" "nut" "nut-client"; then
+    logError "Failed to install NUT"
+    return 1
+  fi
 }
 
 ###########################
@@ -44,6 +47,7 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  echo "ERROR: This script cannot be exceuted"
-  exit 1
+  # echo "ERROR: This script cannot be exceuted"
+  # exit 1
+  nut_setup
 fi

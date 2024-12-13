@@ -469,7 +469,21 @@ EOF
 #   0: Packages are installed
 #   1: Failure
 sg_pkg_install() {
-  sg_print "Asked to install the following packages: $@"
+  sg_pkg_install_from "" "$@"
+}
+
+# Install the package specified (if not already installed)
+#
+# Parameters:
+#   $1: Repo to enable/install from
+#   $@: List of packages
+# Returns:
+#   0: Packages are installed
+#   1: Failure
+sg_pkg_install_from() {
+  local repo="$1"
+  shift
+  sg_print "Asked to install the following packages [${repo}]: $@"
 
   # First, check which OS we are running
   local cur_os
@@ -488,7 +502,7 @@ sg_pkg_install() {
 
   # Update catalog
   if [[ ${SG_PK_UPDATED} -eq 0 ]]; then
-    if ! eval "${fct_update}"; then
+    if ! eval "${fct_update}" \"${repo}\"; then
       sg_print "Failed to update catalog"
       return 1
     else
@@ -505,7 +519,7 @@ sg_pkg_install() {
   # Check which packages need to be installed
   for cur_pkg in "$@"; do
     sg_print "Checking if package \"${cur_pkg}\" is alread installed"
-    eval "${fct_is_installed}" "${cur_pkg}"
+    eval "${fct_is_installed}" \"${repo}\" \"${cur_pkg}\"
     res=$?
     if [[ $res -eq 2 ]]; then
       sg_print "Failed to check if package \"${cur_pkg}\" is installed"
@@ -520,7 +534,7 @@ sg_pkg_install() {
 
   # Check if we have something to install
   if [[ ${#to_install[@]} -gt 0 ]]; then
-    if ! eval ${fct_install} "${to_install[@]}"; then
+    if ! eval ${fct_install} \"${repo}\" \"${to_install[@]}\"; then
       sg_print "Failed to install packages"
       return 1
     fi
@@ -539,19 +553,30 @@ sg_pkg_update_centos() {
 # Checks if a package is installed using yum
 #
 # Parameters:
-#   $1: package to check
+#   $1: Repo to enable
+#   $2: package to check
 # Returns:
 #   0: Package is installed
 #   1: Package is not installed
 #   2: Error
 sg_pkg_is_installed_centos() {
-  local cur_pkg=$1
+  local repo="$1"
+  local cur_pkg="$2"
   local res=2
+
+  local repo_en=""
+  if [[ -n "${repo}" ]]; then
+    repo_en="--enablerepo=${repo}"
+  fi
 
   if yum list installed "${cur_pkg}" &>/dev/null; then
     res=0
   else
-    res=1
+    if yum "${repo_en}" list available "${cur_pkg}" &>/dev/null; then
+      res=1
+    else
+      res=2
+    fi
   fi
 
   return $res
@@ -560,11 +585,19 @@ sg_pkg_is_installed_centos() {
 # Install packages using yum
 #
 # Parameters:
+#   $1: Repo to enable
 #   $@: List of packages to install
 sg_pkg_install_centos() {
+  local repo="$1"
+  shift
   local pkgs=("$@")
 
-  if yum install -y "${pkgs[@]}"; then
+  local repo_en=""
+  if [[ -n "${repo}" ]]; then
+    repo_en="--enablerepo=${repo}"
+  fi
+
+  if yum "${repo_en}" install -y "${pkgs[@]}"; then
     return 0
   else
     return 1

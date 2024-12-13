@@ -9,6 +9,11 @@ else
   return
 fi
 
+pkg_install_from() {
+  sg_pkg_install_from "$@"
+  return $?
+}
+
 # Install the package specified (if not already installed)
 #
 # Parameters:
