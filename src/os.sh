@@ -20,6 +20,33 @@ os() {
   return $res
 }
 
+# Retrieve the next filename in a sequence
+#
+# Parameters:
+#   $1[out]: New filename
+#   $2[in]: Desired filename
+os_get_next_filename() {
+  local _new="$1"
+  local _desired="$2"
+  local res
+
+  local ext="${_desired##*.}"
+  local base="${_desired%.*}"
+  local -i nb
+  res="${base}.${ext}"
+  while [[ -f "${res}" ]]; do
+    if [[ -z "${nb}" ]]; then
+      nb=0
+    else
+      nb=$((nb+1))
+    fi
+    res="${base}_${nb}.${ext}"
+  done
+
+  logInfo "Next filename: ${res}"
+  eval "$_new='${res}'"
+}
+
 # Identify the current OS
 #
 # Parameters:
