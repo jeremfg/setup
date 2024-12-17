@@ -58,9 +58,17 @@ ssh_agent_install() {
 # SSH confiuration to be invoked at startup
 # (This file was automatically generated)
 
-# Make sure the ssh agent is running
-if [[ -z "\${SSH_AUTH_SOCK}" ]]; then
-  eval "\$(ssh-agent)" > /dev/null 2>&1
+# Make sure the ssh-agent is running
+# Recipe from: https://rabexc.org/posts/pitfalls-of-ssh-agents
+ssh-add -l &>/dev/null
+if [[ "\$?" == 2 ]]; then
+  test -r ~/.ssh-agent && eval "\$(<~/.ssh-agent)" >/dev/null
+  ssh-add -l &>/dev/null
+  if [ "\$?" == 2 ]; then
+    (umask 066; ssh-agent > ~/.ssh-agent)
+    eval "\$(<~/.ssh-agent)" >/dev/null
+    ssh-add
+  fi
 fi
 
 # Below are keys to be supported
