@@ -119,6 +119,13 @@ nut_setup() {
   if ! nut_restart; then
     return 1
   fi
+
+  # Make sure NUT is enabled at bootup
+  if ! systemctl enable nut.target nut-driver.target; then
+    logError "Failed to enable NUT at bootup"
+    return 1
+  fi
+
   return 0
 }
 
@@ -146,7 +153,7 @@ nut_set_mode() {
       ;;
   esac
 
-  local nut_cfg="/etc/nut/nut.conf"
+  local nut_cfg="/etc/ups/nut.conf"
   if [[ ! -f ${nut_cfg} ]]; then
     logError "NUT configuration file not found: ${nut_cfg}"
     return 1
@@ -294,7 +301,7 @@ nut_restart() {
     # Check if nut-server.service exists
     if systemctl list-unit-files | grep -q "nut-server.service"; then
       # NUT server is also installed
-      services+=("nut-server" "nut-driver")  
+      services+=("nut-server" "nut-driver-enumerator")  
     fi
 
     # Make sure those services are enabled
