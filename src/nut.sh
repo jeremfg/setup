@@ -328,7 +328,7 @@ nut_restart() {
 
 NU_ARGS=("$@")
 NU_CWD=$(pwd)
-NU_ME="$(basename "$0")"
+NU_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

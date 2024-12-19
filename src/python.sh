@@ -86,7 +86,7 @@ EOF
 
 PY_ARGS=("$@")
 PY_CWD=$(pwd)
-PY_ME="$(basename "$0")"
+PY_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

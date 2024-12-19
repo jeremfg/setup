@@ -94,7 +94,7 @@ SOPS_DEBIAN="sops_${SOPS_VERSION}_amd64.deb"
 
 SO_ARGS=("$@")
 SO_CWD=$(pwd)
-SO_ME="$(basename "$0")"
+SO_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

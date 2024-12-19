@@ -206,7 +206,7 @@ AGE_URL="https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/ag
 
 AG_ARGS=("$@")
 AG_CWD=$(pwd)
-AG_ME="$(basename "$0")"
+AG_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

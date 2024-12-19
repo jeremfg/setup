@@ -464,7 +464,7 @@ MAIL_CFG_NAME="email.env"
 ###########################
 MX_ARGS=("$@")
 MX_CWD=$(pwd)
-MX_ME="$(basename "$0")"
+MX_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

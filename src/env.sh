@@ -151,7 +151,7 @@ env_config() {
 
 EV_ARGS=("$@")
 EV_CWD=$(pwd)
-EV_ME="$(basename "$0")"
+EV_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

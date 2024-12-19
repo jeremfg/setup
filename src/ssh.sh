@@ -342,7 +342,7 @@ SSH_DIR="${HOME}/.ssh"
 ###########################
 SS_ARGS=("$@")
 SS_CWD=$(pwd)
-SS_ME="$(basename "$0")"
+SS_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

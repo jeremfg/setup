@@ -161,7 +161,7 @@ os_rm_config() {
 ###########################
 OS_ARGS=("$@")
 OS_CWD=$(pwd)
-OS_ME="$(basename "$0")"
+OS_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

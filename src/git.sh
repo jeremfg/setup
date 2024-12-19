@@ -277,7 +277,7 @@ git_ssh_config() {
 
 GG_ARGS=("$@")
 GG_CWD=$(pwd)
-GG_ME="$(basename "$0")"
+GG_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

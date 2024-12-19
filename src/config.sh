@@ -167,7 +167,7 @@ config_save() {
 ###########################
 CF_ARGS=("$@")
 CF_CWD=$(pwd)
-CF_ME="$(basename "$0")"
+CF_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
