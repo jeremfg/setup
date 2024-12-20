@@ -162,8 +162,13 @@ EOF
 # (This file was automatically generated during mail configuration)
 
 # Import email configuration
-source "${conf_client_dest}"
-source "${MX_ROOT}/src/slf4sh.sh"
+if ! source "${MX_ROOT}/external/slf4.sh/src/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+if ! source "${conf_client_dest}"; then
+  logFatal "Failed to import email configuration"
+fi
 
 SUBJECT="[\$(hostname)] Test email"
 MESSAGE=\$(cat <<END
@@ -235,7 +240,10 @@ mail_test() {
   fi
 
   # Import email configuration
-  source "${conf_client}"
+  if ! source "${conf_client}"; then
+    logError "Failed to import email configuration"
+    return 1
+  fi
 
   # Send the email
   if ! echo "${body}" | ${MAIL_CMD} -s "${subject}" -r ${SENDER} ${dest}; then
