@@ -220,19 +220,24 @@ AG_ROOT=$(cd -P "$(dirname "${AG_SOURCE}")" >/dev/null 2>&1 && pwd)
 AG_ROOT=$(realpath "${AG_ROOT}/..")
 
 # Import dependencies
-source ${AG_ROOT}/src/slf4sh.sh
-source ${AG_ROOT}/src/git.sh
-source ${AG_ROOT}/src/env.sh
+if ! source "${AG_ROOT}/external/slf4.sh/src/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+if ! source "${AG_ROOT}/src/git.sh"; then
+  logFatal "Failed to import git.sh"
+fi
+if ! source "${AG_ROOT}/src/env.sh"; then
+  logFatal "Failed to import env.sh"
+fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
-  echo "ERROR: This script cannot be piped"
-  exit 1
+  logFatal "This script cannot be piped"
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
   :
 else
   # This script was executed
-  echo "ERROR: This script cannot be exceuted"
-  exit 1
+  logFatal "This script cannot be exceuted"
 fi

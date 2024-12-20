@@ -478,14 +478,20 @@ MX_ROOT=$(cd -P "$(dirname "${MX_SOURCE}")" >/dev/null 2>&1 && pwd)
 MX_ROOT=$(realpath "${MX_ROOT}/..")
 
 # Import dependencies
-source ${MX_ROOT}/src/slf4sh.sh
-source ${MX_ROOT}/src/config.sh
-source ${MX_ROOT}/src/git.sh
+if ! source "${MX_ROOT}/external/slf4.sh/src/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+if ! source "${MX_ROOT}/external/config.sh/src/config.sh"; then
+  logFatal "Failed to import config.sh"
+fi
+if ! source "${MX_ROOT}/src/git.sh"; then
+  logFatal "Failed to import git.sh"
+fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
-  echo "ERROR: This script cannot be piped"
-  exit 1
+  logFatal "This script cannot be piped"
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
   :

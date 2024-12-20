@@ -175,19 +175,21 @@ OS_ROOT=$(cd -P "$(dirname "${OS_SOURCE}")" >/dev/null 2>&1 && pwd)
 OS_ROOT=$(realpath "${OS_ROOT}/..")
 
 # Import dependencies
-source ${OS_ROOT}/src/slf4sh.sh
-source ${OS_ROOT}/src/setup_git.sh
+if ! source "${OS_ROOT}/external/slf4.sh/src/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+fi
+if ! source "${OS_ROOT}/src/setup_git.sh"; then
+  logFatal "Failed to import setup_git.sh"
+fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
-  echo "ERROR: This script cannot be piped"
-  exit 1
+  logFatal "This script cannot be piped"
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
   :
 else
   # This script was executed
-  LOG_CONSOLE=0 # Make sure logger is not outputting anything else on the console than what we want
-  os "${@}"
-  exit $?
+  logFatal "This script cannot be executed"
 fi
