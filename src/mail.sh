@@ -83,7 +83,7 @@ mail_configure() {
 if [[ -z "\${GUARD_EMAIL_ENV}" ]]; then
   GUARD_EMAIL_ENV=1
 else
-  return
+  return 0
 fi
 
 $(cat "${conf_client_dest}")
