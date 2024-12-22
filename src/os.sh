@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_OS_SH} ]]; then
   GUARD_OS_SH=1
 else
-  return
+  return 0
 fi
 
 os() {
@@ -175,7 +175,7 @@ OS_ROOT=$(cd -P "$(dirname "${OS_SOURCE}")" >/dev/null 2>&1 && pwd)
 OS_ROOT=$(realpath "${OS_ROOT}/..")
 
 # Import dependencies
-if ! source "${OS_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

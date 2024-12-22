@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_PKG_SH} ]]; then
   GUARD_PKG_SH=1
 else
-  return
+  return 0
 fi
 
 pkg_install_from() {
@@ -43,7 +43,7 @@ PK_ROOT=$(cd -P "$(dirname "${PK_SOURCE}")" >/dev/null 2>&1 && pwd)
 PK_ROOT=$(realpath "${PK_ROOT}/..")
 
 # Import dependencies
-if ! source "${PK_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

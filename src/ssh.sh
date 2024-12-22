@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_SSH_SH} ]]; then
   GUARD_SSH_SH=1
 else
-  return
+  return 0
 fi
 
 # Test connection to SSH server, making sure credentials are good
@@ -356,7 +356,7 @@ SS_ROOT=$(cd -P "$(dirname "${SS_SOURCE}")" >/dev/null 2>&1 && pwd)
 SS_ROOT=$(realpath "${SS_ROOT}/..")
 
 # Import dependencies
-if ! source "${SS_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

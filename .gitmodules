@@ -1,6 +1,0 @@
-[submodule "external/slf4.sh"]
-	path = external/slf4.sh
-	url = git@github.com:jeremfg/slf4.sh.git
-[submodule "external/config.sh"]
-	path = external/config.sh
-	url = git@github.com:jeremfg/config.sh.git

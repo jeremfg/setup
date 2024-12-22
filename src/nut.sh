@@ -8,7 +8,7 @@
 if [[ -z ${GUARD_NUT_SH} ]]; then
   GUARD_NUT_SH=1
 else
-  return
+  return 0
 fi
 
 # Configure the NUT package
@@ -342,7 +342,7 @@ NU_ROOT=$(cd -P "$(dirname "${NU_SOURCE}")" >/dev/null 2>&1 && pwd)
 NU_ROOT=$(realpath "${NU_ROOT}/..")
 
 # Import dependencies
-if ! source "${NU_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

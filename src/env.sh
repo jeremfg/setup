@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_ENV_SH} ]]; then
   GUARD_ENV_SH=1
 else
-  return
+  return 0
 fi
 
 # Backup the current environment variables
@@ -165,7 +165,7 @@ EV_ROOT=$(cd -P "$(dirname "${EV_SOURCE}")" >/dev/null 2>&1 && pwd)
 EV_ROOT=$(realpath "${EV_ROOT}/..")
 
 # Import dependencies
-if ! source "${EV_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_GIT_SH} ]]; then
   GUARD_GIT_SH=1
 else
-  return
+  return 0
 fi
 
 git_install() {
@@ -291,7 +291,7 @@ GG_ROOT=$(cd -P "$(dirname "${GG_SOURCE}")" >/dev/null 2>&1 && pwd)
 GG_ROOT=$(realpath "${GG_ROOT}/..")
 
 # Import dependencies
-if ! source "${GG_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

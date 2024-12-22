@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_PYTHON_SH} ]]; then
   GUARD_PYTHON_SH=1
 else
-  return
+  return 0
 fi
 
 python_install() {
@@ -100,7 +100,7 @@ PY_ROOT=$(cd -P "$(dirname "${PY_SOURCE}")" >/dev/null 2>&1 && pwd)
 PY_ROOT=$(realpath "${PY_ROOT}/..")
 
 # Import dependencies
-if ! source "${PY_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

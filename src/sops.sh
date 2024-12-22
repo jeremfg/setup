@@ -6,7 +6,7 @@
 if [[ -z ${GUARD_SOPS_SH} ]]; then
   GUARD_SOPS_SH=1
 else
-  return
+  return 0
 fi
 
 # Install SOPS (if not already installed)
@@ -108,7 +108,7 @@ SO_ROOT=$(cd -P "$(dirname "${SO_SOURCE}")" >/dev/null 2>&1 && pwd)
 SO_ROOT=$(realpath "${SO_ROOT}/..")
 
 # Import dependencies
-if ! source "${SO_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi

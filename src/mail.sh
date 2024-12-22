@@ -11,7 +11,7 @@
 if [[ -z ${GUARD_MAIL_SH} ]]; then
   GUARD_MAIL_SH=1
 else
-  return
+  return 0
 fi
 
 mail_configure_prerequisites() {
@@ -162,7 +162,7 @@ EOF
 # (This file was automatically generated during mail configuration)
 
 # Import email configuration
-if ! source "${MX_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
@@ -486,11 +486,11 @@ MX_ROOT=$(cd -P "$(dirname "${MX_SOURCE}")" >/dev/null 2>&1 && pwd)
 MX_ROOT=$(realpath "${MX_ROOT}/..")
 
 # Import dependencies
-if ! source "${MX_ROOT}/external/slf4.sh/src/slf4.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
-if ! source "${MX_ROOT}/external/config.sh/src/config.sh"; then
+if ! source "${PREFIX:-/usr/local}/lib/config.sh"; then
   logFatal "Failed to import config.sh"
 fi
 if ! source "${MX_ROOT}/src/git.sh"; then
