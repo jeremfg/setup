@@ -277,15 +277,17 @@ disk_create_loop() {
   local __res1
 
   if [[ -z ${__result_loop} ]] || [[ -z ${drive} ]] || [[ -z ${start_sector} ]] || [[ -z ${nb_sectors} ]]; then
-    logError "Variables not set"
+    logError "Variables not set: loop=${__result_loop}, drive=${drive}, start_sector=${start_sector}, nb_sectors=${nb_sectors}"
     return 1
   fi
 
-  # if ! __res1=$(losetup --find --show --offset $(( start_sector * 512 )) --sizelimit $(( nb_sectors * 512 )) "/dev/${drive}"); then
-  #   logError "Failed to create loop device"
-  #   return 1
-  # fi
-  __res1="patate"
+  if ! __res1=$(losetup --find --show --offset $(( start_sector * 512 )) --sizelimit $(( nb_sectors * 512 )) "/dev/${drive}"); then
+    logError "Failed to create loop device"
+    return 1
+  else
+    # Strip /dev/ from the loop device
+    __res1=${__res1#/dev/}
+  fi
 
   eval "$__result_loop='${__res1}'"
   return 0
@@ -306,14 +308,32 @@ disk_create_raid1() {
   local drive2="${3}"
 
   if [[ -z ${drive} ]] || [[ -z ${drive1} ]] || [[ -z ${drive2} ]]; then
-    logError "Variables not set"
+    logError "Variables not set: drive=${drive}, drive1=${drive1}, drive2=${drive2}"
     return 1
   fi
 
-  # if ! mdadm --create "/dev/${drive}" --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
-  #   logError "Failed to create raid1"
-  #   return 1
-  # fi
+  if ! yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
+    logError "Failed to create raid1"
+    return 1
+  fi
+
+  return 0
+}
+
+disk_assemble_radi1() {
+  local drive="${1}"
+  local drive1="${2}"
+  local drive2="${3}"
+
+  if [[ -z ${drive} ]] || [[ -z ${drive1} ]] || [[ -z ${drive2} ]]; then
+    logError "Variables not set: drive=${drive}, drive1=${drive1}, drive2=${drive2}"
+    return 1
+  fi
+
+  if ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
+    logError "Failed to assemble raid1"
+    return 1
+  fi
 
   return 0
 }
@@ -331,14 +351,14 @@ disk_format() {
   local fs="${2}"
 
   if [[ -z ${partition} ]] || [[ -z ${fs} ]]; then
-    logError "Variables not set"
+    logError "Variables not set: partition=${partition}, fs=${fs}"
     return 1
   fi
 
-  # if ! mkfs."${fs}" "/dev/${partition}"; then
-  #   logError "Failed to format partition"
-  #   return 1
-  # fi
+  if ! mkfs."${fs}" "/dev/${partition}"; then
+    logError "Failed to format partition"
+    return 1
+  fi
 
   return 0
 }
@@ -354,14 +374,14 @@ disk_remove_loop() {
   local loop="${1}"
 
   if [[ -z ${loop} ]]; then
-    logError "Variables not set"
+    logError "Variables not set: loop=${loop}"
     return 1
   fi
 
-  # if ! losetup --detach "${loop}"; then
-  #   logError "Failed to remove loop device"
-  #   return 1
-  # fi
+  if ! losetup --detach "${loop}"; then
+    logError "Failed to remove loop device"
+    return 1
+  fi
 
   return 0
 
@@ -378,14 +398,14 @@ disk_remove_raid() {
   local raid="${1}"
 
   if [[ -z ${raid} ]]; then
-    logError "Variables not set"
+    logError "Variables not set: raid=${raid}"
     return 1
   fi
 
-  # if ! mdadm --stop "/dev/${raid}"; then
-  #   logError "Failed to remove raid array"
-  #   return 1
-  # fi
+  if ! mdadm --stop "/dev/${raid}"; then
+    logError "Failed to remove raid array"
+    return 1
+  fi
 
   return 0
 }
