@@ -599,7 +599,7 @@ sg_pkg_install_centos() {
 
   sg_print "Installing from ${repo} packages: ${pkgs[@]}"
 
-  if yum "${repo_en}" install -y ${pkgs[@]}; then
+  if yum ${repo_en} install -y ${pkgs[@]}; then
     return 0
   else
     return 1
