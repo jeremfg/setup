@@ -64,8 +64,10 @@ git_configure() {
   cur_user=$(cd "${repo_dir}" && git config user.name)
   cur_email=$(cd "${repo_dir}" && git config user.email)
 
-  # Ask user if he's happy withy the current user, providing the current as default
-  cat <<EOF
+  # If git user is not configured, ask the user about it
+  if [[ -z "${cur_user}" ]] || [[ -z "${cur_email}" ]]; then
+    # Ask user if he's happy withy the current user, providing the current as default
+    cat <<EOF
 *******************************
 ****** Git Configuration ******
 *******************************
@@ -75,26 +77,27 @@ The following user is currently configured
 
 Please change the values if needed (10 seconds timeout)
 EOF
-  local user
-  local email
-  os_ask_user user "Git friendly user" "${cur_user}"
-  os_ask_user email "Git email address" "${cur_email}"
+    local user
+    local email
+    os_ask_user user "Git friendly user" "${cur_user}"
+    os_ask_user email "Git email address" "${cur_email}"
 
-  if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
-    logInfo "Setting git user to: ${user} <${email}>"
-  fi
-  if [[ "${cur_user}" != "${user}" ]]; then
-    if ! git config user.name "${user}"; then
-      logError "Failed to set git user"
-      popd > /dev/null
-      return 1
+    if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
+      logInfo "Setting git user to: ${user} <${email}>"
     fi
-  fi
-  if [[ "${cur_email}" != "${email}" ]]; then
-    if ! git config user.email "${email}"; then
-      logError "Failed to set git email"
-      popd > /dev/null
-      return 1
+    if [[ "${cur_user}" != "${user}" ]]; then
+      if ! git config user.name "${user}"; then
+        logError "Failed to set git user"
+        popd > /dev/null
+        return 1
+      fi
+    fi
+    if [[ "${cur_email}" != "${email}" ]]; then
+      if ! git config user.email "${email}"; then
+        logError "Failed to set git email"
+        popd > /dev/null
+        return 1
+      fi
     fi
   fi
 
