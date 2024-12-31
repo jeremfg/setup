@@ -521,10 +521,10 @@ sg_pkg_install_from() {
     sg_print "Checking if package \"${cur_pkg}\" is alread installed"
     eval "${fct_is_installed}" \"${repo}\" \"${cur_pkg}\"
     res=$?
-    if [[ $res -eq 2 ]]; then
+    if [[ $res -eq 1 ]]; then
       sg_print "Failed to check if package \"${cur_pkg}\" is installed"
       return 1
-    elif [[ $res -eq 1 ]]; then
+    elif [[ $res -eq 2 ]]; then
       sg_print "Package \"${cur_pkg}\" is not installed"
       to_install+=("${cur_pkg}")
     else
