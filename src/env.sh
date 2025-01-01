@@ -28,7 +28,7 @@ var_append() {
   local value="$2"
 
   if [[ -f ${SG_ENV_FILE_BACKUP} ]]; then
-    echo "declare -- ${name}=${value}" >>${SG_ENV_FILE_BACKUP}
+    echo "declare -- ${name}=${value}" >>"${SG_ENV_FILE_BACKUP}"
     logInfo "\"${name}\" was appended"
   else
     logError "No backup file found: ${SG_ENV_FILE_BACKUP}"
@@ -44,8 +44,8 @@ var_clear() {
 
   while IFS='=' read -r name _; do
     logTrace "Clearing \"${name}\""
-    unset "$name"
-  done < <(declare -p | cut -d' ' -f3)
+    unset "${name}"
+  done < <(declare -p | cut -d' ' -f3 || true)
 
   return 0
 }
@@ -85,7 +85,7 @@ env_add() {
     logInfo "[inserted] export ${prop}=${val}"
   fi
 
-  # shellcheck source=../../.bashrc
+  # shellcheck disable=SC1091
   source "${rcFile}"
 
   return 0
@@ -139,7 +139,7 @@ env_config() {
     return 1
   fi
 
-  # shellcheck source=../../.bashrc
+  # shellcheck disable=SC1091
   source "${rcFile}"
 
   return 0
@@ -148,10 +148,6 @@ env_config() {
 ###########################
 ###### Startup logic ######
 ###########################
-
-EV_ARGS=("$@")
-EV_CWD=$(pwd)
-EV_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
@@ -165,6 +161,7 @@ EV_ROOT=$(cd -P "$(dirname "${EV_SOURCE}")" >/dev/null 2>&1 && pwd)
 EV_ROOT=$(realpath "${EV_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

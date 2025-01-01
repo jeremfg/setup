@@ -14,10 +14,10 @@ os() {
   local res
   os_identify myvar
   res=$?
-  if [[ $res -eq 0 ]]; then
+  if [[ ${res} -eq 0 ]]; then
     echo "${myvar}"
   fi
-  return $res
+  return ${res}
 }
 
 # Retrieve the next filename in a sequence
@@ -44,7 +44,7 @@ os_get_next_filename() {
   done
 
   logInfo "Next filename: ${res}"
-  eval "$_new='${res}'"
+  eval "${_new}='${res}'"
 }
 
 # Identify the current OS
@@ -78,18 +78,19 @@ os_ask_user() {
     read -p "${question} [${default}]: " myvar </dev/tty
     res=$?
   else
-    read -t ${timeout} -p "${question} [${default}]: " myvar </dev/tty
+    # shellcheck disable=SC2162
+    read -t "${timeout}" -p "${question} [${default}]: " myvar </dev/tty
     res=$?
   fi
-  if [[ $res -eq 0 ]]; then
+  if [[ ${res} -eq 0 ]]; then
     if [[ -z "${myvar}" ]]; then
-      eval "$ans='${default}'"
+      eval "${ans}='${default}'"
     else
-      eval "$ans='${myvar}'"
+      eval "${ans}='${myvar}'"
     fi
   else
     echo ""
-    eval "$ans='${default}'"
+    eval "${ans}='${default}'"
   fi
   return 0
 }
@@ -158,9 +159,6 @@ os_rm_config() {
 ###########################
 ###### Startup logic ######
 ###########################
-OS_ARGS=("$@")
-OS_CWD=$(pwd)
-OS_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
@@ -174,6 +172,7 @@ OS_ROOT=$(cd -P "$(dirname "${OS_SOURCE}")" >/dev/null 2>&1 && pwd)
 OS_ROOT=$(realpath "${OS_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

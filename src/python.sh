@@ -68,7 +68,7 @@ EOF
   done
 
   if [[ ${#missing_packages[@]} -gt 0 ]]; then
-    logTrace "Installing missing packages: ${missing_packages[@]}"
+    logTrace "Installing missing packages: ${missing_packages[*]}"
     if ! pip3 install "${missing_packages[@]}"; then
       logError "Failed to install missing packages"
       return 1
@@ -84,10 +84,6 @@ EOF
 ###### Startup logic ######
 ###########################
 
-PY_ARGS=("$@")
-PY_CWD=$(pwd)
-PY_ME="$(basename "${BASH_SOURCE[0]}")"
-
 # Get directory of this script
 # https://stackoverflow.com/a/246128
 PY_SOURCE=${BASH_SOURCE[0]}
@@ -100,6 +96,7 @@ PY_ROOT=$(cd -P "$(dirname "${PY_SOURCE}")" >/dev/null 2>&1 && pwd)
 PY_ROOT=$(realpath "${PY_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

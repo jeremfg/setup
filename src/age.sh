@@ -26,12 +26,13 @@ age_install() {
     return 1
   fi
 
-  local url="${AGE_URL}"
-  local installer="$(basename ${url})"
-  local location="${DOWNLOAD_DIR}/${installer}"
+  local url installer location=
+  url="${AGE_URL}"
+  installer="$(basename "${url}")"
+  location="${DOWNLOAD_DIR}/${installer}"
 
   if [[ ! -f "${location}" ]]; then
-    if ! mkdir -p "$(dirname ${location})"; then
+    if ! mkdir -p "$(dirname "${location}")"; then
       logError "Failed to create directory for AGE archive"
       return 1
     fi
@@ -46,10 +47,10 @@ age_install() {
   fi
 
   # For all binary files create a simlink in the bin directory
-  local binfile
+  local binfile sim_file
   for binfile in "${BIN_DIR}/age"/*; do
     if [[ -x "${binfile}" ]]; then
-      local sim_file="${HOME}/bin/$(basename ${binfile})"
+      sim_file="${HOME}/bin/$(basename ${binfile})"
       if ! mkdir -p "${HOME}/bin"; then
         logError "Failed to create directory for binaries"
         return 1
@@ -118,14 +119,14 @@ Please select one of the options below:
 EOF
 
     for i in "${!options[@]}"; do
-      echo "  $((i + 1)). ${options[$i]}"
+      echo "  $((i + 1)). ${options[${i}]}"
     done
 
     # Read user input
     local choice
     while true; do
       read -rp "Enter the number of your choice: " choice </dev/tty
-      if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
+      if [[ "${choice}" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
         logInfo "User chose option ${choice}: ${options[choice - 1]}"
         break
       else
@@ -134,7 +135,7 @@ EOF
     done
 
     # Process user choice
-    case $choice in
+    case ${choice} in
     1)
       logInfo "User chose to abort"
       return 1
@@ -204,10 +205,6 @@ AGE_URL="https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/ag
 ###### Startup logic ######
 ###########################
 
-AG_ARGS=("$@")
-AG_CWD=$(pwd)
-AG_ME="$(basename "${BASH_SOURCE[0]}")"
-
 # Get directory of this script
 # https://stackoverflow.com/a/246128
 AG_SOURCE=${BASH_SOURCE[0]}
@@ -220,6 +217,7 @@ AG_ROOT=$(cd -P "$(dirname "${AG_SOURCE}")" >/dev/null 2>&1 && pwd)
 AG_ROOT=$(realpath "${AG_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

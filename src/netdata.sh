@@ -57,10 +57,6 @@ NETDATA_NOTIFY_CONF="${NETDATA_CONFIG_DIR}/health_alarm_notify.conf"
 ###### Startup logic ######
 ###########################
 
-ND_ARGS=("$@")
-ND_CWD=$(pwd)
-ND_ME="$(basename "${BASH_SOURCE[0]}")"
-
 # Get directory of this script
 # https://stackoverflow.com/a/246128
 ND_SOURCE=${BASH_SOURCE[0]}
@@ -73,10 +69,12 @@ ND_ROOT=$(cd -P "$(dirname "${ND_SOURCE}")" >/dev/null 2>&1 && pwd)
 ND_ROOT=$(realpath "${ND_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/config.sh"; then
   echo "Failed to import config.sh"
   exit 1

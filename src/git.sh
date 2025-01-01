@@ -48,6 +48,7 @@ git_configure() {
     fi
   fi
 
+  # shellcheck disable=SC2119
   if ! git_ssh_config; then
     logError "Failed to configure SSH access for git"
     return 1
@@ -88,14 +89,14 @@ EOF
     if [[ "${cur_user}" != "${user}" ]]; then
       if ! git config user.name "${user}"; then
         logError "Failed to set git user"
-        popd >/dev/null
+        popd >/dev/null || return 1
         return 1
       fi
     fi
     if [[ "${cur_email}" != "${email}" ]]; then
       if ! git config user.email "${email}"; then
         logError "Failed to set git email"
-        popd >/dev/null
+        popd >/dev/null || return 1
         return 1
       fi
     fi
@@ -111,13 +112,14 @@ EOF
     logInfo "Setting push.default to simple"
     if ! git config push.default simple; then
       logError "Failed to set push.default"
-      popd >/dev/null
+      popd >/dev/null || return 1
       return 1
     fi
   fi
 
   # Apply configurations to all submodules
-  user="${user}" email="${email}" git submodule foreach '
+  # shellcheck disable=SC2016
+  if ! user="${user}" email="${email}" git submodule foreach '
     cur_user=$(git config user.name)
     cur_email=$(git config user.email)
 
@@ -145,15 +147,13 @@ EOF
         exit 1
       fi
     fi
-  '
-
-  if [[ $? -ne 0 ]]; then
+  '; then
     logError "Failed to apply git configuration to submodules"
-    popd >/dev/null
+    popd >/dev/null || return 1
     return 1
   fi
 
-  popd >/dev/null
+  popd >/dev/null || return 1
   return 0
 }
 
@@ -168,7 +168,7 @@ EOF
 #   1: Error, not even a valid location
 #   2: Not a git directory. $1=$2
 git_find_root() {
-  sg_git_find_root $1 $2
+  sg_git_find_root "${1}" "${2}"
   return $?
 }
 
@@ -179,6 +179,7 @@ git_find_root() {
 # Returns:
 #   0: If SSH access was succesfully configured
 #   1: If SSH configuration failed
+# shellcheck disable=SC2120
 git_ssh_config() {
   local git_server="$1"
   if [[ -z "${git_server}" ]]; then
@@ -239,7 +240,7 @@ git_ssh_config() {
     esac
   done
 
-  if [[ $res -ne 0 ]]; then
+  if [[ ${res} -ne 0 ]]; then
     # In case of error, de-register the last key we tried
     if [[ -n "${actual_key}" ]]; then
       if ! ssh-add -d "${actual_key}"; then
@@ -257,8 +258,8 @@ git_ssh_config() {
   fi
 
   # Cleanup keys
-  for key in ${keys_to_clean}; do
-    if [[ $res -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
+  for key in ${keys_to_clean[@]}; do
+    if [[ ${res} -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
       if ! ssh-add -d "${key}"; then
         logWarn "Could not unregister key: ${key}"
       fi
@@ -272,16 +273,13 @@ git_ssh_config() {
   done
   keys_to_clean=()
 
+  # shellcheck disable=SC2248
   return ${res}
 }
 
 ###########################
 ###### Startup logic ######
 ###########################
-
-GG_ARGS=("$@")
-GG_CWD=$(pwd)
-GG_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

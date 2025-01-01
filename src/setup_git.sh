@@ -41,6 +41,7 @@ setup_git() {
   declare -g SG_ARGS=("$@")
 
   # Parse arguments
+  # shellcheck disable=SC2119
   if ! sg_parse_args; then
     sg_print "Failed to parse arguments"
     return 1
@@ -70,19 +71,21 @@ setup_git() {
   if [[ -n "${SG_COMMAND}" ]]; then
     local res
 
-    pushd "${dir}" >/dev/null
+    pushd "${dir}" >/dev/null || return 1
     cat <<EOF
 ======================================
 ${SG_NAME} completed execution successfully.
 Now executing the requested command:
-$(pwd)$ ${SG_COMMAND[@]}
+${SG_COMMAND[*]}
 ======================================
 EOF
+    # shellcheck disable=SC2068
     ${SG_COMMAND[@]}
     res=$?
-    popd >/dev/null
+    popd >/dev/null !! return 1
 
-    return $res
+    # shellcheck disable=SC2248
+    return ${res}
   fi
 
   return 0
@@ -100,7 +103,7 @@ sg_clone_repository() {
   local _res
   sg_git_prepare_clone _dir "${SG_REPO_URL}"
   _res=$?
-  eval "$ret_dir='${_dir}'"
+  eval "${ret_dir}='${_dir}'"
   case ${_res} in
   0)
     return 0
@@ -136,7 +139,8 @@ sg_clone_repository() {
         ;;
       1)
         # Permissions denied? Try another key
-        local new_key=$(mktemp)
+        local new_key
+        new_key=$(mktemp)
         SG_KEYS_TO_CLEANUP+=("${new_key}")
         if ! sg_ssh_paste_key "${new_key}"; then
           sg_print "No key obtained"
@@ -159,8 +163,7 @@ sg_clone_repository() {
     done
   fi
 
-  git clone --recursive -b "${SG_GIT_REF}" "${SG_REPO_URL}" "${_dir}"
-  if [[ $? -ne 0 ]]; then
+  if ! git clone --recursive -b "${SG_GIT_REF}" "${SG_REPO_URL}" "${_dir}"; then
     sg_print "Failed to clone repository"
     rm -rf "${_dir}"
     return 1
@@ -197,7 +200,7 @@ sg_ssh_prepare() {
   if [[ -z "${SSH_AUTH_SOCK}" ]]; then
     sg_trap_exit_add sg_cleanup
     sg_print "Starting SSH agent"
-    eval "$(ssh-agent -s)"
+    eval "$(ssh-agent -s || true)"
     SG_AGENT_STARTED="true"
   else
     sg_print "SSH agent already running"
@@ -210,7 +213,7 @@ sg_cleanup() {
   local cur_key
   for cur_key in "${SG_KEYS_TO_CLEANUP[@]}"; do
     sg_print "Removing SSH key: ${cur_key}"
-    ssh-add -d "$cur_key"
+    ssh-add -d "${cur_key}"
     rm -f "${cur_key}"
   done
   SG_KEYS_TO_CLEANUP=()
@@ -225,6 +228,7 @@ sg_cleanup() {
   sg_print "Cleanup complete"
 }
 
+# shellcheck disable=SC2120
 sg_parse_args() {
   local short="hv"
   local long="help,version"
@@ -251,7 +255,7 @@ sg_parse_args() {
 
   # Second pass to parse the actual command line arguments
   local parsed
-  if ! parsed=$(getopt --options ${short} --long ${long} --name "${SG_NAME}" -- "${real_args[@]}"); then
+  if ! parsed=$(getopt --options "${short}" --long "${long}" --name "${SG_NAME}" -- "${real_args[@]}"); then
     sg_print "Failed to parse arguments"
     sg_print_usage
     return 1
@@ -363,7 +367,7 @@ SG_TRAPS=()
 
 # Backup the current environment variables
 sg_var_backup() {
-  declare -p >${SG_ENV_FILE_BACKUP}
+  declare -p >"${SG_ENV_FILE_BACKUP}"
   sg_print "Environment variables have been backed up to: ${SG_ENV_FILE_BACKUP}"
   return 0
 }
@@ -380,6 +384,7 @@ sg_var_restore() {
   fi
 
   # Source the backup file to restore the shell variables
+  # shellcheck disable=SC1090
   source "${SG_ENV_FILE_BACKUP}" 2 &>/dev/null # Hide complaints about readonly variables
   sg_print "Shell variables have been restored from: ${SG_ENV_FILE_BACKUP}"
 
@@ -398,6 +403,7 @@ sg_os_identify() {
   if [[ -f "${file_os_release}" ]]; then
     sg_print "Sourcing: ${file_os_release}"
     sg_var_backup # Some of our variables might get overwritten. We'll restore later
+    # shellcheck disable=SC1090
     source "${file_os_release}"
     # Print name and version
     if [[ -n "${NAME}" && -n "${VERSION}" ]]; then
@@ -407,14 +413,14 @@ sg_os_identify() {
     # Iterate over all values in ID and ID_LIKE, in order
     local curId
     for curId in ${ID} ${ID_LIKE}; do
-      case $curId in
+      case ${curId} in
       centos)
-        eval "$_os='centos'"
+        eval "${_os}='centos'"
         sg_print "Identified centos"
         break
         ;;
       ubuntu)
-        eval "$_os='ubuntu'"
+        eval "${_os}='ubuntu'"
         sg_print "Identified ubuntu"
         break
         ;;
@@ -436,10 +442,10 @@ sg_os_identify() {
 === Start of available information ===
 ======================================
 === uname -a ===
-$(uname -a)
+$(uname -a || true)
 
 === lsb_release -a ===
-$(lsb_release -a)
+$(lsb_release -a || true)
 
 === /etc/*release files ===
 EOF
@@ -447,7 +453,7 @@ EOF
     for releaseFile in /etc/*release; do
       if [[ -f ${releaseFile} ]]; then
         sg_print "=== Contents of ${releaseFile} ==="
-        cat ${releaseFile} | sg_print
+        cat "${releaseFile}" | sg_print || true
       fi
     done
     sg_print <<EOF
@@ -482,7 +488,7 @@ sg_pkg_install() {
 sg_pkg_install_from() {
   local repo="$1"
   shift
-  sg_print "Asked to install the following packages [${repo}]: $@"
+  sg_print "Asked to install the following packages [${repo}]: $*"
 
   # First, check which OS we are running
   local cur_os
@@ -501,7 +507,7 @@ sg_pkg_install_from() {
 
   # Update catalog
   if [[ ${SG_PK_UPDATED} -eq 0 ]]; then
-    if ! eval "${fct_update}" \"${repo}\"; then
+    if ! eval "${fct_update}" "\"${repo}\""; then
       sg_print "Failed to update catalog"
       return 1
     else
@@ -518,12 +524,12 @@ sg_pkg_install_from() {
   # Check which packages need to be installed
   for cur_pkg in "$@"; do
     sg_print "Checking if package \"${cur_pkg}\" is alread installed"
-    eval "${fct_is_installed}" \"${repo}\" \"${cur_pkg}\"
+    eval "${fct_is_installed}" "\"${repo}\"" "\"${cur_pkg}\""
     res=$?
-    if [[ $res -eq 1 ]]; then
+    if [[ ${res} -eq 1 ]]; then
       sg_print "Failed to check if package \"${cur_pkg}\" is installed"
       return 1
-    elif [[ $res -eq 2 ]]; then
+    elif [[ ${res} -eq 2 ]]; then
       sg_print "Package \"${cur_pkg}\" is not installed"
       to_install+=("${cur_pkg}")
     else
@@ -533,7 +539,7 @@ sg_pkg_install_from() {
 
   # Check if we have something to install
   if [[ ${#to_install[@]} -gt 0 ]]; then
-    if ! eval ${fct_install} \"${repo}\" \"${to_install[@]}\"; then
+    if ! eval "${fct_install}" "\"${repo}\"" \"${to_install[@]}\"; then
       sg_print "Failed to install packages"
       return 1
     fi
@@ -578,7 +584,8 @@ sg_pkg_is_installed_centos() {
     fi
   fi
 
-  return $res
+  # shellcheck disable=SC2248
+  return ${res}
 }
 
 # Install packages using yum
@@ -596,9 +603,9 @@ sg_pkg_install_centos() {
     repo_en="--enablerepo=${repo}"
   fi
 
-  sg_print "Installing from ${repo} packages: ${pkgs[@]}"
+  sg_print "Installing from ${repo} packages: ${pkgs[*]}"
 
-  if yum ${repo_en} install -y ${pkgs[@]}; then
+  if yum "${repo_en}" install -y "${pkgs[@]}"; then
     return 0
   else
     return 1
@@ -685,13 +692,13 @@ sg_git_find_root() {
         _cur_dir="${_next_dir}"
       else
         _cur_dir="$(cd "${_cur_dir}" && git rev-parse --show-toplevel)"
-        eval "$_root='${_cur_dir}'"
+        eval "${_root}='${_cur_dir}'"
         return 0
       fi
     done
   else
     # Not a git repository
-    eval "$_root='${_start_dir}'"
+    eval "${_root}='${_start_dir}'"
     return 2
   fi
 }
@@ -711,12 +718,12 @@ sg_git_prepare_clone() {
   local _res=0
 
   # Get repo name from URL
-  local repoName
-  repoName=$(basename ${_url})
+  local repoName checkout_dir
+  repoName=$(basename "${_url}")
   repoName=${repoName%.git} # Remove .git extension
 
   # Determine location where we should be checking out
-  local checkout_dir=$(pwd)
+  checkout_dir=$(pwd)
   sg_git_find_root checkout_dir "${checkout_dir}"
   _res=$?
   case ${_res} in
@@ -738,7 +745,7 @@ sg_git_prepare_clone() {
     ;;
   esac
 
-  eval "$_repo_dir='${checkout_dir}'"
+  eval "${_repo_dir}='${checkout_dir}'"
 
   # Prepare location
   if [[ ! -d "${checkout_dir}" ]]; then
@@ -751,13 +758,13 @@ sg_git_prepare_clone() {
     return 2 # Ready to clone
   elif cd "${checkout_dir}" && git rev-parse --is-inside-work-tree &>/dev/null; then
     # This is already a git repository. But perhaps it's the same one we want?
-    if [[ "$(cd "${checkout_dir}" && git config --get remote.origin.url)" != "${_url}" ]]; then
+    if [[ "$(cd "${checkout_dir}" && git config --get remote.origin.url || true)" != "${_url}" ]]; then
       sg_print "Turns out there's a different repository at this location"
       return 1
     fi
     sg_print "Repository already cloned"
     return 0
-  elif [[ -z "$(ls -A "${checkout_dir}")" ]]; then
+  elif [[ -z "$(ls -A "${checkout_dir}" || true)" ]]; then
     sg_print "Directory is empty, this is a suitable location"
     return 2
   else
@@ -801,6 +808,7 @@ sg_ssh_test_connection() {
     res=2
   fi
 
+  # shellcheck disable=SC2248
   return ${res}
 }
 
@@ -819,7 +827,7 @@ sg_trap_exit_add() {
   nb_traps="${#SG_TRAPS[@]}"
 
   local found
-  for t in ${SG_TRAPS[@]}; do
+  for t in "${SG_TRAPS[@]}"; do
     if [[ "${t}" == "${new_trap}" ]]; then
       found=true
     fi
@@ -839,13 +847,18 @@ sg_trap_exit_add() {
 # Actual trap called on Exit
 sg_trap_exit() {
   # Loop and call every registered traps
-  for t in ${SG_TRAPS[@]}; do
+  for t in "${SG_TRAPS[@]}"; do
     sg_print "Clenaup calling: ${t}"
     eval "${t}"
   done
 
   return 0
 }
+
+# Variables loaded externally
+ID=""
+ID_LIKE=""
+
 
 ###########################
 ###### Startup logic ######

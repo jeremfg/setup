@@ -88,7 +88,7 @@ nut_setup() {
   if [[ "${_nut_mode}" == "netserver" ]] || [[ "${_nut_mode}" == "standalone" ]]; then
     req_pkgs+=("nut")
   fi
-  if ! pkg_install_from epel ${req_pkgs[@]}; then
+  if ! pkg_install_from epel "${req_pkgs[@]}"; then
     logError "Failed to install NUT"
     return 1
   fi
@@ -160,13 +160,13 @@ nut_set_mode() {
 
   # Read current mode
   local current_mode
-  current_mode=$(grep -E "^MODE=" ${nut_cfg} | cut -d'=' -f2)
+  current_mode=$(grep -E "^MODE=" ${nut_cfg} | cut -d'=' -f2 || true)
   if [[ -z ${current_mode} ]]; then
     logError "Failed to read current mode"
     return 1
   fi
 
-  if [[ ${current_mode} == ${MODE} ]]; then
+  if [[ "${current_mode}" == "${MODE}" ]]; then
     logInfo "NUT mode already set to: ${MODE}"
     return 0
   fi
@@ -184,7 +184,7 @@ nut_set_mode() {
   fi
 
   # Update mode
-  if ! sed -i "s/^MODE=.*/MODE=${MODE}/" ${nut_cfg}; then
+  if ! sed -i "s/^MODE=.*/MODE=${MODE}/" "${nut_cfg}"; then
     logError "Failed to update NUT mode"
     return 1
   else
@@ -266,8 +266,7 @@ nut_configure_file() {
       fi
 
       # Write new configuration
-      echo "${!file_content_var}" >${file}
-      if [[ $? -ne 0 ]]; then
+      if ! echo "${!file_content_var}" >"${file}"; then
         logError "Failed to update ${file}"
         return 1
       fi
@@ -280,8 +279,7 @@ nut_configure_file() {
   else
     # File does not exist, create it
     logWarn "Unexpectedly, File ${file} did not exist. Creating one..."
-    echo "${!file_content_var}" >${file}
-    if [[ $? -ne 0 ]]; then
+    if ! echo "${!file_content_var}" >"${file}"; then
       logError "Failed to create ${file}"
       return 1
     fi
@@ -290,6 +288,7 @@ nut_configure_file() {
     logInfo "Created ${file} succesfully"
   fi
 
+  # shellcheck disable=SC2312
   return 0
 }
 
@@ -298,6 +297,7 @@ nut_restart() {
   if [[ ${NUT_RESTART_REQUIRED} -eq 1 ]]; then
     local services=("nut-monitor")
     # Check if nut-server.service exists
+    # shellcheck disable=SC2312
     if systemctl list-unit-files | grep -q "nut-server.service"; then
       # NUT server is also installed
       services+=("nut-server" "nut-driver-enumerator")
@@ -305,14 +305,13 @@ nut_restart() {
 
     # Make sure those services are enabled
     if ! systemctl enable "${services[@]}"; then
-      logError "Failed to enable NUT services: ${services[@]}"
+      logError "Failed to enable NUT services: ${services[*]}"
       return 1
     fi
 
     # Restart services
-    systemctl restart "${services[@]}"
-    if [[ $? -ne 0 ]]; then
-      logError "Failed to restart NUT service: ${services[@]}"
+    if ! systemctl restart "${services[@]}"; then
+      logError "Failed to restart NUT service: ${services[*]}"
       return 1
     fi
 
@@ -324,10 +323,6 @@ nut_restart() {
 ###########################
 ###### Startup logic ######
 ###########################
-
-NU_ARGS=("$@")
-NU_CWD=$(pwd)
-NU_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
@@ -341,6 +336,7 @@ NU_ROOT=$(cd -P "$(dirname "${NU_SOURCE}")" >/dev/null 2>&1 && pwd)
 NU_ROOT=$(realpath "${NU_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

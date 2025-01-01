@@ -56,9 +56,10 @@ disk_root_partition() {
     _boot_drive=("${_boot_drive}")
     ;;
   raid1)
+    # shellcheck disable=SC2128
     _boot_partition="${_boot_drive}"
     # We will need to retrieve which drives are part of this array
-    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Active Devices' | awk '{print $4}'); then
+    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Active Devices' | awk '{print $4}' || true); then
       logError "Failed to find boot drive"
       return 1
     else
@@ -68,7 +69,7 @@ disk_root_partition() {
       logError "Only raid1 arrays of two drives are supported"
       return 1
     fi
-    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq); then
+    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true); then
       logError "Failed to find boot drive"
       return 1
     else
@@ -84,8 +85,8 @@ disk_root_partition() {
   esac
 
   # Use indirect variable references to return the array and partition
-  eval "$__result_boot_drive=(\"\${_boot_drive[@]}\")"
-  eval "$__result_boot_partition='${_boot_partition}'"
+  eval "${__result_boot_drive}=(\"\${_boot_drive[@]}\")"
+  eval "${__result_boot_partition}='${_boot_partition}'"
   return 0
 }
 
@@ -114,7 +115,7 @@ disk_list_drives() {
   IFS=$'\n' read -r -d '' -a _drives <<<"$(echo -e "${res}")"
 
   # Use indirect variable references to return the array
-  eval "$__result_drives=(\"\${_drives[@]}\")"
+  eval "${__result_drives}=(\"\${_drives[@]}\")"
   return 0
 }
 
@@ -157,8 +158,8 @@ disk_drive_size() {
     logTrace "Sector size: ${__res2}"
   fi
 
-  eval "$__result_sec_cnt='${__res1}'"
-  eval "$__result_sec_size='${__res2}'"
+  eval "${__result_sec_cnt}='${__res1}'"
+  eval "${__result_sec_size}='${__res2}'"
 
   if [[ -n ${__result_phys_size} ]]; then
     if ! __res3=$(blockdev --getpbsz "/dev/${drive}"); then
@@ -166,7 +167,7 @@ disk_drive_size() {
       return 1
     else
       logTrace "Physical sector size: ${__res3}"
-      eval "$__result_phys_size='${__res3}'"
+      eval "${__result_phys_size}='${__res3}'"
     fi
   else
     __res3=0
@@ -233,12 +234,22 @@ disk_get_available() {
   fi
 
   # Check if drive contains boot_partition
+  # shellcheck disable=SC2312
   if lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
     logTrace "Drive ${drive} contains boot partition"
     # Read last usable sector
-    if ! __res1=$(sgdisk -p /dev/${drive} | grep "last usable sector is" | awk '{print $10}'); then
+    if ! __res1=$(sgdisk -p /dev/${drive}); then
       logError "Failed to find last usable sector"
       return 1
+    else
+      __res1=$(echo "${__res1}" | grep "last usable sector is" | awk '{print $10}')
+      __res1=$((__res1 + 34))
+
+      # Sanity check, we should be on a 512-byte boundary
+      if [[ $((__res1 % 512)) -ne 0 ]]; then
+        logWarn "Drive ${drive} is not aligned (${__res1} % 512 != 0)"
+      fi
+    fi
     else
       # Go past the GPT header (34 sectors)
       __res1=$((__res1 + 34))
@@ -253,8 +264,8 @@ disk_get_available() {
     logTrace "Start sector [${drive}]: ${__res1}"
   fi
 
-  eval "$__result_start_sector='${__res1}'"
-  eval "$__result_end_sector='${__res2}'"
+  eval "${__result_start_sector}='${__res1}'"
+  eval "${__result_end_sector}='${__res2}'"
   return 0
 }
 
@@ -289,7 +300,7 @@ disk_create_loop() {
     __res1=${__res1#/dev/}
   fi
 
-  eval "$__result_loop='${__res1}'"
+  eval "${__result_loop}='${__res1}'"
   return 0
 }
 
@@ -312,6 +323,7 @@ disk_create_raid1() {
     return 1
   fi
 
+  # shellcheck disable=SC2312
   if ! yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
     logError "Failed to create raid1"
     return 1
@@ -410,13 +422,13 @@ disk_remove_raid() {
   return 0
 }
 
+# Variables loaded externally
+LOG_LEVEL=""
+LOG_LEVEL_TRACE=""
+
 ###########################
 ###### Startup logic ######
 ###########################
-
-DK_ARGS=("$@")
-DK_CWD=$(pwd)
-DK_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
@@ -430,6 +442,7 @@ DK_ROOT=$(cd -P "$(dirname "${DK_SOURCE}")" >/dev/null 2>&1 && pwd)
 DK_ROOT=$(realpath "${DK_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

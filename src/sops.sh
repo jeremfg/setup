@@ -29,7 +29,7 @@ sops_install() {
   local res
   ${fct_name}
   res=$?
-  if [[ $res -eq 0 ]]; then
+  if [[ ${res} -eq 0 ]]; then
     if command -v sops &>/dev/null; then
       logInfo "SOPS was installed successfully"
       return 0
@@ -44,9 +44,10 @@ sops_install() {
 
 # Untested
 sops_install_ubuntu() {
-  local url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
-  local installer="$(basename ${url})"
-  local location="${DOWNLOAD_DIR}/${installer}"
+  local url installer location
+  url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
+  location="${DOWNLOAD_DIR}/${installer}"
+  installer="$(basename ${url})"
   if [[ ! -f "${location}" ]]; then
     logTrace "Downloading into ${location} from ${url}"
     if ! curl -sSL -o "${location}" "${url}"; then
@@ -54,18 +55,19 @@ sops_install_ubuntu() {
       return 1
     fi
   fi
-  if ! sudo apt install -y ${location}; then
+  if ! sudo apt install -y "${location}"; then
     logError "Failed to install SOPS"
     return 1
   fi
 }
 
 sops_install_centos() {
-  local url="${SOPS_URL_BASE}${SOPS_REDHAT}"
-  local installer="$(basename ${url})"
-  local location="${DOWNLOAD_DIR}/${installer}"
+  local url installer location
+  url="${SOPS_URL_BASE}${SOPS_REDHAT}"
+  location="${DOWNLOAD_DIR}/${installer}"
+  installer="$(basename "${url}")"
   if [[ ! -f "${location}" ]]; then
-    if ! mkdir -p "$(dirname ${location})"; then
+    if ! mkdir -p "$(dirname "${location}")"; then
       logError "Failed to create directory for SOPS installer"
       return 1
     fi
@@ -75,7 +77,7 @@ sops_install_centos() {
       return 1
     fi
   fi
-  if ! sudo yum install -y ${location}; then
+  if ! sudo yum install -y "${location}"; then
     logError "Failed to install SOPS"
     return 1
   fi
@@ -91,10 +93,6 @@ SOPS_DEBIAN="sops_${SOPS_VERSION}_amd64.deb"
 ###########################
 ###### Startup logic ######
 ###########################
-
-SO_ARGS=("$@")
-SO_CWD=$(pwd)
-SO_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128

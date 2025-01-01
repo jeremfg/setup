@@ -18,7 +18,7 @@ fi
 #   1: Bad credentials
 #   2: Other error
 ssh_test_connection() {
-  sg_ssh_test_connection $1
+  sg_ssh_test_connection "${1}"
   return $?
 }
 
@@ -77,7 +77,7 @@ EOF
     )
 
     logInfo "Creating SSH configuration file: ${config_filename}"
-    mkdir -p "$(dirname ${config_filename})"
+    mkdir -p "$(dirname "${config_filename}")"
     echo "${file}" >"${config_filename}"
   else
     logInfo "SSH configuration already present"
@@ -148,13 +148,13 @@ ssh_next_key_name() {
   # Find an available filename
   local myfile
   local i=0
-  while [[ -f "${SSH_DIR}/${3}_${i}" ]]; do
+  while [[ -f "${SSH_DIR}/${prefix}_${i}" ]]; do
     ((i++))
   done
-  myfile="${SSH_DIR}/${3}_${i}"
+  myfile="${SSH_DIR}/${prefix}_${i}"
   logInfo "Filename generation: ${myfile}"
   touch "${myfile}"
-  eval "$_filename='${myfile}'"
+  eval "${_filename}='${myfile}'"
   rm -f "${myfile}"
   return 0
 }
@@ -216,14 +216,14 @@ Please select one of the options below:
 EOF
 
   for i in "${!options[@]}"; do
-    echo "  $((i + 1)). ${options[$i]}"
+    echo "  $((i + 1)). ${options[${i}]}"
   done
 
   # Read user input
   local choice
   while true; do
     read -rp "Enter the number of your choice: " choice </dev/tty
-    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
+    if [[ "${choice}" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
       logInfo "User chose option ${choice}: ${options[choice - 1]}"
       break
     else
@@ -232,7 +232,7 @@ EOF
   done
 
   # Process user choice
-  case $choice in
+  case ${choice} in
   1)
     logInfo "User chose to abort"
     return 2
@@ -241,7 +241,7 @@ EOF
     logInfo "User chose to generate a new SSH key"
     # Ask user for his email address
     if ssh_generate_keypair "${suggested_key}"; then
-      eval "$private_key='${suggested_key}'"
+      eval "${private_key}='${suggested_key}'"
       return 0
     else
       return 1
@@ -251,7 +251,7 @@ EOF
     logInfo "User chose to paste an existing SSH private key"
     # Ask user for key, read input and write to file
     if git_paste_key "${suggested_key}"; then
-      eval "$private_key='${suggested_key}'"
+      eval "${private_key}='${suggested_key}'"
       return 0
     else
       return 1
@@ -259,16 +259,14 @@ EOF
     ;;
   *)
     local ssh_file="${ssh_files[$((choice - 4))]}"
-    if ! chmod 0600 ${ssh_file}; then
+    if ! chmod 0600 "${ssh_file}"; then
       logError "Failed to change permissions on key file"
     fi
     logInfo "User chose to use existing private key: ${ssh_file}"
-    eval "$private_key='${ssh_file}'"
+    eval "${private_key}='${ssh_file}'"
     return 0
     ;;
   esac
-
-  return 1
 }
 
 # Guide the user in generating a new keypair
@@ -292,7 +290,7 @@ ssh_generate_keypair() {
   fi
 
   # Check with regex it's a valid email
-  if [[ $email =~ $regex ]]; then
+  if [[ "${email}" =~ ${regex} ]]; then
     logInfo "Generating SSH key: ${file}"
 
     if ! ssh-keygen -t ed25519 -C "${email}" -f "${_prv_key}"; then
@@ -307,11 +305,12 @@ For github, follow the instructions here: https://docs.github.com/en/authenticat
 
 Below is what you will need to paste:
 ---------------------------------
-$(cat "${_prv_key}.pub")
+$(cat "${_prv_key}.pub" || true)
 ---------------------------------
 Press [Enter] when you are done registering your key
 EOF
       # Wait for user to press Enter
+      # shellcheck disable=SC2162
       read </dev/tty
     fi
   else
@@ -341,9 +340,6 @@ SSH_DIR="${HOME}/.ssh"
 ###########################
 ###### Startup logic ######
 ###########################
-SS_ARGS=("$@")
-SS_CWD=$(pwd)
-SS_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
 # https://stackoverflow.com/a/246128
@@ -357,6 +353,7 @@ SS_ROOT=$(cd -P "$(dirname "${SS_SOURCE}")" >/dev/null 2>&1 && pwd)
 SS_ROOT=$(realpath "${SS_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

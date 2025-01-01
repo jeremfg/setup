@@ -87,11 +87,10 @@ else
   return 0
 fi
 
-$(cat "${conf_client_dest}")
+$(cat "${conf_client_dest}" || true)
 EOF
   )
-  echo "${file_content}" >"${conf_client_dest}"
-  if [[ $? -ne 0 ]]; then
+  if ! echo "${file_content}" >"${conf_client_dest}"; then
     logError "Failed to add include guard to email configuration"
     return 1
   fi
@@ -203,12 +202,10 @@ EOF
   )
 
   logInfo "Installing email test script"
-  echo "${file_content}" >"${BIN_DIR}/email_test.sh"
-  if [[ $? -ne 0 ]]; then
+  if ! echo "${file_content}" >"${BIN_DIR}/email_test.sh"; then
     logWarn "Failed to install email test script"
   fi
-  chmod +x "${BIN_DIR}/email_test.sh"
-  if [[ $? -ne 0 ]]; then
+  if ! chmod +x "${BIN_DIR}/email_test.sh"; then
     logWarn "Failed to make email test script executable"
   fi
 
@@ -241,13 +238,14 @@ mail_test() {
   fi
 
   # Import email configuration
+  # shellcheck disable=SC1090
   if ! source "${conf_client}"; then
     logError "Failed to import email configuration"
     return 1
   fi
 
   # Send the email
-  if ! echo "${body}" | ${MAIL_CMD} -s "${subject}" -r ${SENDER} ${dest}; then
+  if ! echo "${body}" | ${MAIL_CMD} -s "${subject}" -r "${SENDER}" "${dest}"; then
     logError "Failed to send test email"
     return 1
   else
@@ -264,6 +262,7 @@ mail_main() {
     return 1
   fi
 
+  # shellcheck disable=SC2119
   if ! mail_parse; then
     logError "Failed to parse mail arguments"
     return 1
@@ -312,7 +311,7 @@ mail_is_supported() {
   if ! res=$(readlink -f "${MAIL_CMD}"); then
     logError "Failed to find out where mail command is linking to"
     return 1
-  elif [[ ! "$(basename ${res})" =~ "mailx" ]]; then
+  elif [[ ! "$(basename "${res}")" =~ "mailx" ]]; then
     logError "mail command is not pointing to mailx"
     return 1
   else
@@ -322,6 +321,7 @@ mail_is_supported() {
   return 0
 }
 
+# shellcheck disable=SC2120
 mail_parse() {
   local short="hvs:b:"
   local long="help,version,subject,body"
@@ -332,7 +332,7 @@ mail_parse() {
   fi
 
   local parsed
-  if ! parsed=$(getopt --options ${short} --long ${long} --name "${MX_ME}" -- "${MX_ARGS[@]}"); then
+  if ! parsed=$(getopt --options "${short}" --long "${long}" --name "${MX_ME}" -- "${MX_ARGS[@]}"); then
     logError "Failed to parse arguments"
     mail_print_usage
     return 1
@@ -465,6 +465,13 @@ SSMTP_CONF=(
   "/etc/ssmtp.conf"
 )
 
+# Variables loaded externally
+SSMTP_HUB=""
+SSMTP_USER=""
+SSMTP_PASS=""
+SSMTP_USESTARTTLS=""
+SENDER=""
+
 # Constants
 MAIL_CFG_NAME="email.env"
 
@@ -472,7 +479,6 @@ MAIL_CFG_NAME="email.env"
 ###### Startup logic ######
 ###########################
 MX_ARGS=("$@")
-MX_CWD=$(pwd)
 MX_ME="$(basename "${BASH_SOURCE[0]}")"
 
 # Get directory of this script
@@ -487,10 +493,12 @@ MX_ROOT=$(cd -P "$(dirname "${MX_SOURCE}")" >/dev/null 2>&1 && pwd)
 MX_ROOT=$(realpath "${MX_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/config.sh"; then
   logFatal "Failed to import config.sh"
 fi
