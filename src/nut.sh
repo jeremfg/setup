@@ -30,57 +30,57 @@ nut_setup() {
 
   # Validate parameters
   case ${_nut_mode} in
-    none)
-      logInfo "NUT disabled"
-      ;;
-    standalone|netserver)
-      if [[ -z ${_nut_driver} ]]; then
-        logError "UPS driver not specified"
-        return 1
-      fi
-      if [[ -z ${_nut_daemon} ]]; then
-        logError "NUT daemon not specified"
-        return 1
-      fi
-      if [[ -z ${_nut_user} ]]; then
-        logError "NUT user not specified"
-        return 1
-      fi
-      if [[ -z "${!_nut_driver}" ]]; then
-        logError "UPS driver not defined"
-        return 1
-      fi
-      if [[ -z "${!_nut_daemon}" ]]; then
-        logError "NUT daemon not defined"
-        return 1
-      fi
-      if [[ -z "${!_nut_user}" ]]; then
-        logError "NUT user not defined"
-        return 1
-      fi
-      ;& # Fallthrough
-    netclient)
-      if [[ -z ${_nut_monitor} ]]; then
-        logError "NUT monitor not specified"
-        return 1
-      fi
-      if [[ -z ${_nut_scheduler} ]]; then
-        logError "NUT scheduler not specified"
-        return 1
-      fi
-      if [[ -z "${!_nut_monitor}" ]]; then
-        logError "NUT monitor not defined"
-        return 1
-      fi
-      if [[ -z "${!_nut_scheduler}" ]]; then
-        logError "NUT scheduler not defined"
-        return 1
-      fi
-      ;;
-    *)
-      logError "NUT mode not supported: ${_nut_mode}"
+  none)
+    logInfo "NUT disabled"
+    ;;
+  standalone | netserver)
+    if [[ -z ${_nut_driver} ]]; then
+      logError "UPS driver not specified"
       return 1
-      ;;
+    fi
+    if [[ -z ${_nut_daemon} ]]; then
+      logError "NUT daemon not specified"
+      return 1
+    fi
+    if [[ -z ${_nut_user} ]]; then
+      logError "NUT user not specified"
+      return 1
+    fi
+    if [[ -z "${!_nut_driver}" ]]; then
+      logError "UPS driver not defined"
+      return 1
+    fi
+    if [[ -z "${!_nut_daemon}" ]]; then
+      logError "NUT daemon not defined"
+      return 1
+    fi
+    if [[ -z "${!_nut_user}" ]]; then
+      logError "NUT user not defined"
+      return 1
+    fi
+    ;& # Fallthrough
+  netclient)
+    if [[ -z ${_nut_monitor} ]]; then
+      logError "NUT monitor not specified"
+      return 1
+    fi
+    if [[ -z ${_nut_scheduler} ]]; then
+      logError "NUT scheduler not specified"
+      return 1
+    fi
+    if [[ -z "${!_nut_monitor}" ]]; then
+      logError "NUT monitor not defined"
+      return 1
+    fi
+    if [[ -z "${!_nut_scheduler}" ]]; then
+      logError "NUT scheduler not defined"
+      return 1
+    fi
+    ;;
+  *)
+    logError "NUT mode not supported: ${_nut_mode}"
+    return 1
+    ;;
   esac
 
   # Install packages
@@ -143,14 +143,13 @@ nut_set_mode() {
     logError "Mode not specified"
     return 1
   fi
-  
+
   case ${MODE} in
-    none|standalone|netserver|netclient)
-      ;;
-    *)
-      logError "Mode not supported: ${MODE}"
-      return 1
-      ;;
+  none | standalone | netserver | netclient) ;;
+  *)
+    logError "Mode not supported: ${MODE}"
+    return 1
+    ;;
   esac
 
   local nut_cfg="/etc/ups/nut.conf"
@@ -267,12 +266,12 @@ nut_configure_file() {
       fi
 
       # Write new configuration
-      echo "${!file_content_var}" > ${file}
+      echo "${!file_content_var}" >${file}
       if [[ $? -ne 0 ]]; then
         logError "Failed to update ${file}"
         return 1
       fi
-      
+
       NUT_RESTART_REQUIRED=1
       logInfo "Updated ${file} succesfully"
     else
@@ -281,12 +280,12 @@ nut_configure_file() {
   else
     # File does not exist, create it
     logWarn "Unexpectedly, File ${file} did not exist. Creating one..."
-    echo "${!file_content_var}" > ${file}
+    echo "${!file_content_var}" >${file}
     if [[ $? -ne 0 ]]; then
       logError "Failed to create ${file}"
       return 1
     fi
-    
+
     NUT_RESTART_REQUIRED=1
     logInfo "Created ${file} succesfully"
   fi
@@ -301,7 +300,7 @@ nut_restart() {
     # Check if nut-server.service exists
     if systemctl list-unit-files | grep -q "nut-server.service"; then
       # NUT server is also installed
-      services+=("nut-server" "nut-driver-enumerator")  
+      services+=("nut-server" "nut-driver-enumerator")
     fi
 
     # Make sure those services are enabled

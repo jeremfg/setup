@@ -110,31 +110,31 @@ age_configure() {
     done
 
     # Print the question
-  cat <<EOF
+    cat <<EOF
 ******************************
 **** AGE Key configurator ****
 ******************************
 Please select one of the options below:
 EOF
 
-  for i in "${!options[@]}"; do
-   echo "  $((i+1)). ${options[$i]}"
-  done
+    for i in "${!options[@]}"; do
+      echo "  $((i + 1)). ${options[$i]}"
+    done
 
-  # Read user input
-  local choice
-  while true; do
-    read -rp "Enter the number of your choice: " choice < /dev/tty
-    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
-      logInfo "User chose option ${choice}: ${options[choice - 1]}"
-      break;
-    else
-      echo "Invalid choice. Please try again."
-    fi
-  done
+    # Read user input
+    local choice
+    while true; do
+      read -rp "Enter the number of your choice: " choice </dev/tty
+      if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
+        logInfo "User chose option ${choice}: ${options[choice - 1]}"
+        break
+      else
+        echo "Invalid choice. Please try again."
+      fi
+    done
 
-  # Process user choice
-  case $choice in
+    # Process user choice
+    case $choice in
     1)
       logInfo "User chose to abort"
       return 1
@@ -162,7 +162,7 @@ EOF
       # Read in the private key from /dev/tty
       local key_content
       key_content=$(cat /dev/tty)
-      echo "${key_content}" > "${key}"
+      echo "${key_content}" >"${key}"
       cat <<EOF
 ______________________________________
 EOF
@@ -178,7 +178,7 @@ EOF
         return 1
       fi
       ;;
-  esac
+    esac
   fi
   if ! env_add "SOPS_AGE_KEY_FILE" "${key}"; then
     logError "Failed to configure AGE key"

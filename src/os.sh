@@ -38,7 +38,7 @@ os_get_next_filename() {
     if [[ -z "${nb}" ]]; then
       nb=0
     else
-      nb=$((nb+1))
+      nb=$((nb + 1))
     fi
     res="${base}_${nb}.${ext}"
   done
@@ -51,7 +51,7 @@ os_get_next_filename() {
 #
 # Parameters:
 #   $1[out]: Current OS
-os_identify(){
+os_identify() {
   # Function is maintained in setup_git.sh
   sg_os_identify "${1}"
   return $?
@@ -75,10 +75,10 @@ os_ask_user() {
   local res
   # Ask user for input, using timeout if default value is not empty
   if [[ -z "${default}" ]]; then
-    read -p "${question} [${default}]: " myvar < /dev/tty
+    read -p "${question} [${default}]: " myvar </dev/tty
     res=$?
   else
-    read -t ${timeout} -p "${question} [${default}]: " myvar < /dev/tty
+    read -t ${timeout} -p "${question} [${default}]: " myvar </dev/tty
     res=$?
   fi
   if [[ $res -eq 0 ]]; then
@@ -106,7 +106,6 @@ os_add_config() {
   local cfg_file="$1"
   local cfg_line="$2"
 
-
   if [[ -z "${cfg_line}" ]]; then
     logError "Cannot configure an empty line"
     return 1
@@ -123,7 +122,7 @@ os_add_config() {
       logInfo "Configuration line already present: ${cfg_line}"
     fi
   else
-    echo "${cfg_line}" > "${cfg_file}"
+    echo "${cfg_line}" >"${cfg_file}"
     logInfo "Created configuration file: ${cfg_file} and added line: ${cfg_line}"
   fi
 

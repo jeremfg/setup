@@ -38,8 +38,8 @@ disk_root_partition() {
   fi
 
   if ! _boot_drive=$(lsblk -dno PKNAME "${_boot_partition}"); then
-      logError "Failed to find boot drive"
-      return 1
+    logError "Failed to find boot drive"
+    return 1
   else
     logTrace "Boot drive: ${_boot_drive}"
   fi
@@ -73,7 +73,7 @@ disk_root_partition() {
       return 1
     else
       # Turn members into an array
-      IFS=$'\n' read -r -d '' -a _boot_drive <<< "$(echo -e "${res}")"
+      IFS=$'\n' read -r -d '' -a _boot_drive <<<"$(echo -e "${res}")"
       logTrace "Raid members: ${_boot_drive[*]}"
     fi
     ;;
@@ -111,7 +111,7 @@ disk_list_drives() {
   fi
 
   # Turn members into an array
-  IFS=$'\n' read -r -d '' -a _drives <<< "$(echo -e "${res}")"
+  IFS=$'\n' read -r -d '' -a _drives <<<"$(echo -e "${res}")"
 
   # Use indirect variable references to return the array
   eval "$__result_drives=(\"\${_drives[@]}\")"
@@ -241,10 +241,10 @@ disk_get_available() {
       return 1
     else
       # Go past the GPT header (34 sectors)
-      __res1=$(( __res1 + 34 ))
+      __res1=$((__res1 + 34))
 
       # Sanity check, we should be on a 512-byte boundary
-      if [[ $(( __res1 % 512 )) -ne 0 ]]; then
+      if [[ $((__res1 % 512)) -ne 0 ]]; then
         logWarn "Drive ${drive} is not aligned (${__res1} % 512 != 0)"
       fi
     fi
@@ -281,7 +281,7 @@ disk_create_loop() {
     return 1
   fi
 
-  if ! __res1=$(losetup --find --show --offset $(( start_sector * 512 )) --sizelimit $(( nb_sectors * 512 )) "/dev/${drive}"); then
+  if ! __res1=$(losetup --find --show --offset $((start_sector * 512)) --sizelimit $((nb_sectors * 512)) "/dev/${drive}"); then
     logError "Failed to create loop device"
     return 1
   else

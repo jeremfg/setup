@@ -19,7 +19,7 @@
 #   2. Execute it, and while passing the right arguments, will do the following where/when needed
 #   3. Install git, configure SSH, clone git repository.
 #   4. Execute a custom command, relative to the root of the cloned repository.
-# 
+#
 # It is assumed that after step 4 above, more specific setup will be performed by scripts provided.
 # This script is only the entry point to get the ball rolling, but the setup repo as a whole is designed
 # to be used like a library, sharing code to create more complex stage-2 setup scripts
@@ -27,7 +27,7 @@
 # Currently tested on the following OSes:
 # - XCP-ng 8.3 (CentOS)
 # - Ubuntu 24.04
-# 
+#
 # Known to work with the following versions of git:
 # - 1.8.3.1
 # - 2.43.0
@@ -70,8 +70,8 @@ setup_git() {
   if [[ -n "${SG_COMMAND}" ]]; then
     local res
 
-    pushd "${dir}" > /dev/null
-          cat <<EOF
+    pushd "${dir}" >/dev/null
+    cat <<EOF
 ======================================
 ${SG_NAME} completed execution successfully.
 Now executing the requested command:
@@ -80,8 +80,8 @@ $(pwd)$ ${SG_COMMAND[@]}
 EOF
     ${SG_COMMAND[@]}
     res=$?
-    popd > /dev/null
-    
+    popd >/dev/null
+
     return $res
   fi
 
@@ -102,19 +102,19 @@ sg_clone_repository() {
   _res=$?
   eval "$ret_dir='${_dir}'"
   case ${_res} in
-    0)
-      return 0
-      ;;
-    2)
-      # Proceed with cloning
-      ;;
-    1)
-      return 1
-      ;;
-    *)
-      sg_print "Unexpected return from clone preparation: ${_res}"
-      return 1
-      ;;
+  0)
+    return 0
+    ;;
+  2)
+    # Proceed with cloning
+    ;;
+  1)
+    return 1
+    ;;
+  *)
+    sg_print "Unexpected return from clone preparation: ${_res}"
+    return 1
+    ;;
   esac
 
   # Check if http URL, or assume SSH
@@ -130,32 +130,32 @@ sg_clone_repository() {
       sg_ssh_test_connection "${SG_REPO_URL}"
       _res=$?
       case ${_res} in
-        0)
-          # SSH access is working
-          break
-          ;;
-        1)
-          # Permissions denied? Try another key
-          local new_key=$(mktemp)
-          SG_KEYS_TO_CLEANUP+=("${new_key}")
-          if ! sg_ssh_paste_key "${new_key}"; then
-            sg_print "No key obtained"
-            return 1
-          fi
-          if ! ssh-add "${new_key}"; then
-            sg_print "ssh-add returned an error"
-            return 1
-          fi
-          ;;
-        2)
-          sg_print "Unrecoverable error occured when trying to connect via SSH"
+      0)
+        # SSH access is working
+        break
+        ;;
+      1)
+        # Permissions denied? Try another key
+        local new_key=$(mktemp)
+        SG_KEYS_TO_CLEANUP+=("${new_key}")
+        if ! sg_ssh_paste_key "${new_key}"; then
+          sg_print "No key obtained"
           return 1
-          ;;
-        *)
-          sg_print "Unexpected return from SSH test: ${_res}"
+        fi
+        if ! ssh-add "${new_key}"; then
+          sg_print "ssh-add returned an error"
           return 1
-          ;;
-      esac 
+        fi
+        ;;
+      2)
+        sg_print "Unrecoverable error occured when trying to connect via SSH"
+        return 1
+        ;;
+      *)
+        sg_print "Unexpected return from SSH test: ${_res}"
+        return 1
+        ;;
+      esac
     done
   fi
 
@@ -165,7 +165,7 @@ sg_clone_repository() {
     rm -rf "${_dir}"
     return 1
   fi
-  
+
   return 0
 }
 
@@ -176,19 +176,19 @@ sg_clone_repository() {
 #   1: SSH is not going to work
 sg_ssh_prepare() {
   # Make sure ssh, ssh-agent, ssh-keygen and ssh-add are available
-  if ! command -v ssh &> /dev/null; then
+  if ! command -v ssh &>/dev/null; then
     sg_print "ssh not found"
     return 1
   fi
-  if ! command -v ssh-agent &> /dev/null; then
+  if ! command -v ssh-agent &>/dev/null; then
     sg_print "ssh-agent not found"
     return 1
   fi
-  if ! command -v ssh-keygen &> /dev/null; then
+  if ! command -v ssh-keygen &>/dev/null; then
     sg_print "ssh-add not found"
     return 1
   fi
-  if ! command -v ssh-add &> /dev/null; then
+  if ! command -v ssh-add &>/dev/null; then
     sg_print "ssh-add not found"
     return 1
   fi
@@ -229,7 +229,7 @@ sg_parse_args() {
   local short="hv"
   local long="help,version"
 
-  if ! command -v getopt &> /dev/null; then
+  if ! command -v getopt &>/dev/null; then
     sg_print "getopt not found"
     return 1
   fi
@@ -260,24 +260,24 @@ sg_parse_args() {
   eval set -- "${parsed}"
   while true; do
     case "$1" in
-      -h|--help)
-        sg_print_usage
-        return 0
-        ;;
-      -v|--version)
-        echo "${SG_VERSION}"
-        return 0
-        ;;
-      --)
-        shift # Remaining arguments are positional
-        break
-        ;;
-      *)
-        sg_print "Invalid option: $1"
-        shift
-        sg_print_usage
-        return 1
-        ;;
+    -h | --help)
+      sg_print_usage
+      return 0
+      ;;
+    -v | --version)
+      echo "${SG_VERSION}"
+      return 0
+      ;;
+    --)
+      shift # Remaining arguments are positional
+      break
+      ;;
+    *)
+      sg_print "Invalid option: $1"
+      shift
+      sg_print_usage
+      return 1
+      ;;
     esac
   done
 
@@ -312,7 +312,7 @@ sg_parse_args() {
 #   $1[in]: Message to print
 sg_print() {
   # Try to use logInfo, if available
-  if typeset -f logInfo > /dev/null; then
+  if typeset -f logInfo >/dev/null; then
     logInfo "${1}"
   else
     if [[ -n "${1}" ]]; then
@@ -363,7 +363,7 @@ SG_TRAPS=()
 
 # Backup the current environment variables
 sg_var_backup() {
-  declare -p > ${SG_ENV_FILE_BACKUP}
+  declare -p >${SG_ENV_FILE_BACKUP}
   sg_print "Environment variables have been backed up to: ${SG_ENV_FILE_BACKUP}"
   return 0
 }
@@ -380,18 +380,17 @@ sg_var_restore() {
   fi
 
   # Source the backup file to restore the shell variables
-  source "${SG_ENV_FILE_BACKUP}" 2&> /dev/null # Hide complaints about readonly variables
+  source "${SG_ENV_FILE_BACKUP}" 2 &>/dev/null # Hide complaints about readonly variables
   sg_print "Shell variables have been restored from: ${SG_ENV_FILE_BACKUP}"
 
   return 0
 }
 
-
 # Identify the current OS
 #
 # Parameters:
 #   $1[out]: Current OS
-sg_os_identify(){
+sg_os_identify() {
   local _os="$1"
   local file_os_release="/etc/os-release"
   sg_print "Performing OS identification..."
@@ -408,20 +407,20 @@ sg_os_identify(){
     # Iterate over all values in ID and ID_LIKE, in order
     local curId
     for curId in ${ID} ${ID_LIKE}; do
-      case $curId in 
-        centos)
-          eval "$_os='centos'"
-          sg_print "Identified centos"
-          break
-          ;;
-        ubuntu)
-          eval "$_os='ubuntu'"
-          sg_print "Identified ubuntu"
-          break
-          ;;
-        *)
-          sg_print "Unknown OS: ${curId}"
-          ;;
+      case $curId in
+      centos)
+        eval "$_os='centos'"
+        sg_print "Identified centos"
+        break
+        ;;
+      ubuntu)
+        eval "$_os='ubuntu'"
+        sg_print "Identified ubuntu"
+        break
+        ;;
+      *)
+        sg_print "Unknown OS: ${curId}"
+        ;;
       esac
     done
     sg_var_restore
@@ -634,7 +633,7 @@ EOF
   # Read in the private key from /dev/tty
   local _prv_key_content
   _prv_key_content=$(cat /dev/tty)
-  echo "${_prv_key_content}" > "${_prv_key}"
+  echo "${_prv_key_content}" >"${_prv_key}"
   cat <<EOF
 ______________________________________
 EOF
@@ -663,7 +662,7 @@ sg_git_find_root() {
     sg_print "Initial directory invalid"
     return 1
   fi
-  
+
   # First, search up the hierarchy until we find a valid directory
   _cur_dir="${_start_dir}"
   while [[ ! -d "${_cur_dir}" ]]; do
@@ -677,12 +676,12 @@ sg_git_find_root() {
   done
 
   # Ok, from this point we have a valid directory. Now we need to check for git
-  if cd "${_cur_dir}" && git rev-parse --is-inside-work-tree &> /dev/null; then
+  if cd "${_cur_dir}" && git rev-parse --is-inside-work-tree &>/dev/null; then
     local _next_dir="${_cur_dir}"
     while true; do
       _next_dir="$(cd "${_cur_dir}" && git rev-parse --show-toplevel)/.."
       _next_dir="$(realpath "${_next_dir}")"
-      if cd "${_next_dir}" && git rev-parse --is-inside-work-tree &> /dev/null; then
+      if cd "${_next_dir}" && git rev-parse --is-inside-work-tree &>/dev/null; then
         _cur_dir="${_next_dir}"
       else
         _cur_dir="$(cd "${_cur_dir}" && git rev-parse --show-toplevel)"
@@ -721,22 +720,22 @@ sg_git_prepare_clone() {
   sg_git_find_root checkout_dir "${checkout_dir}"
   _res=$?
   case ${_res} in
-    0)
-      checkout_dir="$(realpath "${checkout_dir}/../${repoName}")"
-      sg_print "Git-relative checkout directory is: ${checkout_dir}"
-      ;;
-    1)
-      sg_print "Failed to find a proper checkout location"
-      return 1
-      ;;
-    2)
-      checkout_dir="${checkout_dir}/${repoName}"
-      sg_print "Checkout directory is: ${checkout_dir}"
-      ;;
-    *)
-      sg_print "Unexpected return code for root location: ${_res}"
-      return 1
-      ;;
+  0)
+    checkout_dir="$(realpath "${checkout_dir}/../${repoName}")"
+    sg_print "Git-relative checkout directory is: ${checkout_dir}"
+    ;;
+  1)
+    sg_print "Failed to find a proper checkout location"
+    return 1
+    ;;
+  2)
+    checkout_dir="${checkout_dir}/${repoName}"
+    sg_print "Checkout directory is: ${checkout_dir}"
+    ;;
+  *)
+    sg_print "Unexpected return code for root location: ${_res}"
+    return 1
+    ;;
   esac
 
   eval "$_repo_dir='${checkout_dir}'"
@@ -750,7 +749,7 @@ sg_git_prepare_clone() {
       return 1
     fi
     return 2 # Ready to clone
-  elif cd "${checkout_dir}" && git rev-parse --is-inside-work-tree &> /dev/null; then
+  elif cd "${checkout_dir}" && git rev-parse --is-inside-work-tree &>/dev/null; then
     # This is already a git repository. But perhaps it's the same one we want?
     if [[ "$(cd "${checkout_dir}" && git config --get remote.origin.url)" != "${_url}" ]]; then
       sg_print "Turns out there's a different repository at this location"
@@ -758,7 +757,7 @@ sg_git_prepare_clone() {
     fi
     sg_print "Repository already cloned"
     return 0
-  elif [[ -z "$( ls -A "${checkout_dir}" )" ]]; then
+  elif [[ -z "$(ls -A "${checkout_dir}")" ]]; then
     sg_print "Directory is empty, this is a suitable location"
     return 2
   else

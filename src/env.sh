@@ -28,7 +28,7 @@ var_append() {
   local value="$2"
 
   if [[ -f ${SG_ENV_FILE_BACKUP} ]]; then
-    echo "declare -- ${name}=${value}" >> ${SG_ENV_FILE_BACKUP}
+    echo "declare -- ${name}=${value}" >>${SG_ENV_FILE_BACKUP}
     logInfo "\"${name}\" was appended"
   else
     logError "No backup file found: ${SG_ENV_FILE_BACKUP}"
@@ -74,14 +74,14 @@ env_add() {
   fi
 
   local rcFile="${HOME}/.bashrc"
-  local prop="$1"   # export property to insert
-  local val="$2"    # the desired value
+  local prop="$1" # export property to insert
+  local val="$2"  # the desired value
 
   if grep -q "^export ${prop}=" "${rcFile}"; then
     sed -i "s,^export ${prop}=.*$,export ${prop}=${val}," "${rcFile}"
     logInfo "[updated] export ${prop}=${val}"
   else
-    echo -e "export ${prop}=${val}" >> "${rcFile}"
+    echo -e "export ${prop}=${val}" >>"${rcFile}"
     logInfo "[inserted] export ${prop}=${val}"
   fi
 

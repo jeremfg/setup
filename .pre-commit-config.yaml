@@ -6,11 +6,11 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=512']
       - id: check-case-conflict
-      - id: check-executables-have-shebangs # Shell
-      - id: check-shebang-scripts-are-executable # Shell
+      - id: check-executables-have-shebangs  # Shell
+      - id: check-shebang-scripts-are-executable  # Shell
       - id: check-merge-conflict
       - id: check-symlinks
-      - id: check-yaml # YAML
+      - id: check-yaml  # YAML
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
@@ -22,24 +22,24 @@ repos:
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.7.0-4  # Use the latest release of shfmt
     hooks:
-      - id: shfmt # Shell
+      - id: shfmt  # Shell
         args: [-i, '2', -w]
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0  # Spellcheck uses version 0.9.0 installed locally
     hooks:
-      - id: shellcheck # Shell
+      - id: shellcheck  # Shell
         args: [--enable, all, -x]
       - id: git-check
       - id: git-dirty
-      - id: script-must-have-extension # Shell
+      - id: script-must-have-extension  # Shell
         types: [shell, non-executable]
-      - id: script-must-not-have-extension # Shell
+      - id: script-must-not-have-extension  # Shell
         types: [shell, executable]
       - id: forbid-binary
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.38.0
     hooks:
-      - id: markdownlint # Markdown
+      - id: markdownlint  # Markdown
         args: ["--fix"]
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.4
@@ -49,9 +49,9 @@ repos:
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.35.1  # Latest version from adrien
     hooks:
-      - id: yamllint # YAML
+      - id: yamllint  # YAML
         args: [--format, parsable, --strict]
   - repo: https://github.com/google/yamlfmt
     rev: v0.14.0  # Latest version from Google
     hooks:
-      - id: yamlfmt # YAML
+      - id: yamlfmt  # YAML

@@ -63,7 +63,7 @@ mail_configure() {
   # We have everything we need. Configure...
   # If encrypted, decrypt it
   if sops -d --input-type dotenv --output-type dotenv "${conf_client}" &>/dev/null; then
-    if ! sops -d --input-type dotenv --output-type dotenv "${conf_client}" > "${conf_client_dest}"; then
+    if ! sops -d --input-type dotenv --output-type dotenv "${conf_client}" >"${conf_client_dest}"; then
       logError "Failed to install an encrypted mail configuration"
       return 1
     fi
@@ -75,9 +75,10 @@ mail_configure() {
     fi
     logInfo "Installed mail configuration"
   fi
-  
+
   # Add include guard to email config
-  file_content=$(cat <<EOF
+  file_content=$(
+    cat <<EOF
 # Configuration options for sending emails
 
 if [[ -z "\${GUARD_EMAIL_ENV}" ]]; then
@@ -89,7 +90,7 @@ fi
 $(cat "${conf_client_dest}")
 EOF
   )
-  echo "${file_content}" > "${conf_client_dest}"
+  echo "${file_content}" >"${conf_client_dest}"
   if [[ $? -ne 0 ]]; then
     logError "Failed to add include guard to email configuration"
     return 1
@@ -152,9 +153,9 @@ EOF
     return 1
   fi
 
-  
   # Install the email test script
-  file_content=$(cat <<EOF
+  file_content=$(
+    cat <<EOF
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
@@ -202,7 +203,7 @@ EOF
   )
 
   logInfo "Installing email test script"
-  echo "${file_content}" > "${BIN_DIR}/email_test.sh"
+  echo "${file_content}" >"${BIN_DIR}/email_test.sh"
   if [[ $? -ne 0 ]]; then
     logWarn "Failed to install email test script"
   fi
@@ -269,24 +270,24 @@ mail_main() {
   fi
 
   case "${MAIL_SUBCMD}" in
-    configure)
-      if ! mail_configure "${CLIENT_CFG}" "${MTA_CFG}"; then
-        logError "Failed to configure email"
-        return 1
-      fi
-      ;;
-    test)
-      if ! mail_test "${MAIL_DEST}" "${MAIL_SUBJECT}" "${MAIL_BODY}"; then
-        logError "Failed to send test email"
-        return 1
-      fi
-      ;;
-    *)
-      logError "Invalid command: ${MAIL_SUBCMD}"
+  configure)
+    if ! mail_configure "${CLIENT_CFG}" "${MTA_CFG}"; then
+      logError "Failed to configure email"
       return 1
-      ;;
+    fi
+    ;;
+  test)
+    if ! mail_test "${MAIL_DEST}" "${MAIL_SUBJECT}" "${MAIL_BODY}"; then
+      logError "Failed to send test email"
+      return 1
+    fi
+    ;;
+  *)
+    logError "Invalid command: ${MAIL_SUBCMD}"
+    return 1
+    ;;
   esac
-  
+
   return 0
 }
 
@@ -314,7 +315,7 @@ mail_is_supported() {
   elif [[ ! "$(basename ${res})" =~ "mailx" ]]; then
     logError "mail command is not pointing to mailx"
     return 1
-  else 
+  else
     MAIL_CMD="${res}"
   fi
 
@@ -325,7 +326,7 @@ mail_parse() {
   local short="hvs:b:"
   local long="help,version,subject,body"
 
-  if ! command -v getopt &> /dev/null; then
+  if ! command -v getopt &>/dev/null; then
     logError "getopt not found"
     return 1
   fi
@@ -340,31 +341,31 @@ mail_parse() {
   eval set -- "${parsed}"
   while true; do
     case "$1" in
-      -h|--help)
-        mail_print_usage
-        return 0
-        ;;
-      -v|--version)
-        echo "0.0.0"
-        return 0
-        ;;
-      -s|--subject)
-        shift
-        MAIL_SUBJECT="$1"
-        ;;
-      -b|--body)
-        shift
-        MAIL_BODY="$1"
-        ;;
-      --)
-        shift
-        break
-        ;;
-      *)
-        logError "Invalid argument: $1"
-        mail_print_usage
-        return 1
-        ;;
+    -h | --help)
+      mail_print_usage
+      return 0
+      ;;
+    -v | --version)
+      echo "0.0.0"
+      return 0
+      ;;
+    -s | --subject)
+      shift
+      MAIL_SUBJECT="$1"
+      ;;
+    -b | --body)
+      shift
+      MAIL_BODY="$1"
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      logError "Invalid argument: $1"
+      mail_print_usage
+      return 1
+      ;;
     esac
   done
 
@@ -447,7 +448,7 @@ Usage: ${MX_ME} configure <client_config> <mta_config>
 Arguments:
   client_config Path to a sendemail.conf file containing the expected variables configuring the MTA
   mta_config    Path to MTA configuration file containing SSMTP_USER, SSMTP_PASS, SSMTP_HUB and SSMTP_SSMTP_USESTARTTLS
-  dest          Email address of the recie (To:)   
+  dest          Email address of the recie (To:)
 
 Options:
   -s, --subject Subject of the email

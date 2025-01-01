@@ -38,7 +38,7 @@ sops_install() {
       return 1
     fi
   fi
-  
+
   return $?
 }
 

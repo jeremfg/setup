@@ -12,7 +12,7 @@ fi
 git_install() {
   logTrace "Configuring git"
 
-  if command -v git &> /dev/null; then
+  if command -v git &>/dev/null; then
     logInfo "Git is already installed"
     return 0
   fi
@@ -22,7 +22,7 @@ git_install() {
     logError "Could not install git"
     return 1
   else
-    if command -v git &> /dev/null; then
+    if command -v git &>/dev/null; then
       return 0
     else
       logError "Could not detect git installation"
@@ -53,7 +53,7 @@ git_configure() {
     return 1
   fi
 
-  if ! pushd "${repo_dir}" > /dev/null; then
+  if ! pushd "${repo_dir}" >/dev/null; then
     logError "Failed to change directory to ${repo_dir}"
     return 1
   fi
@@ -88,14 +88,14 @@ EOF
     if [[ "${cur_user}" != "${user}" ]]; then
       if ! git config user.name "${user}"; then
         logError "Failed to set git user"
-        popd > /dev/null
+        popd >/dev/null
         return 1
       fi
     fi
     if [[ "${cur_email}" != "${email}" ]]; then
       if ! git config user.email "${email}"; then
         logError "Failed to set git email"
-        popd > /dev/null
+        popd >/dev/null
         return 1
       fi
     fi
@@ -111,7 +111,7 @@ EOF
     logInfo "Setting push.default to simple"
     if ! git config push.default simple; then
       logError "Failed to set push.default"
-      popd > /dev/null
+      popd >/dev/null
       return 1
     fi
   fi
@@ -149,15 +149,13 @@ EOF
 
   if [[ $? -ne 0 ]]; then
     logError "Failed to apply git configuration to submodules"
-    popd > /dev/null
+    popd >/dev/null
     return 1
   fi
 
-  popd > /dev/null
+  popd >/dev/null
   return 0
 }
-
-
 
 # Search for the parent/root of the top repository,
 # walking up submodules if present
@@ -203,41 +201,41 @@ git_ssh_config() {
     ssh_test_connection "${git_server}"
     res=$?
     case ${res} in
-      0)
-        # SSH key is working
+    0)
+      # SSH key is working
+      break
+      ;;
+    1)
+      # Permissions denied? Try another key
+      ssh_next_key_name key "git_key"
+      if ! ssh_ask actual_key "${key}"; then
+        # Break the loop, to allow the cleanup to still run
+        res=2
+        actual_key=""
         break
-        ;;
-      1)
-        # Permissions denied? Try another key
-        ssh_next_key_name key "git_key"
-        if ! ssh_ask actual_key "${key}"; then
-          # Break the loop, to allow the cleanup to still run
-          res=2
-          actual_key=""
-          break
-        fi
+      fi
 
-        # This means this was a generated key, and we want to delete it if it doesn't work
-        if [[ "${key}" == "${actual_key}" ]]; then  
-          keys_to_clean+=("${actual_key}")
-        fi
+      # This means this was a generated key, and we want to delete it if it doesn't work
+      if [[ "${key}" == "${actual_key}" ]]; then
+        keys_to_clean+=("${actual_key}")
+      fi
 
-        # Configure this key, so it's usable for the upcoming test
-        if ! ssh-add "${actual_key}"; then
-          # Break the loop, to allow the cleanup to still run
-          res=2
-          actual_key=""
-          break
-        fi
-        ;;
-      2)
-        logError "Unrecoverable error occured when trying to connect via SSH"
+      # Configure this key, so it's usable for the upcoming test
+      if ! ssh-add "${actual_key}"; then
+        # Break the loop, to allow the cleanup to still run
+        res=2
+        actual_key=""
         break
-        ;;
-      *)
-        logError "Unexpected return from SSH test: ${res}"
-        break
-        ;;
+      fi
+      ;;
+    2)
+      logError "Unrecoverable error occured when trying to connect via SSH"
+      break
+      ;;
+    *)
+      logError "Unexpected return from SSH test: ${res}"
+      break
+      ;;
     esac
   done
 
@@ -260,17 +258,17 @@ git_ssh_config() {
 
   # Cleanup keys
   for key in ${keys_to_clean}; do
-	if [[ $res -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
-	  if ! ssh-add -d "${key}"; then
-	    logWarn "Could not unregister key: ${key}"
-	  fi
-	  if ! rm -f "${key}"; then
-	    logWarn "Failure to delete private key ${key}"
-	  fi
-	  if ! rm -f "${key}.pub"; then
-	    logWarn "Failure to delete private key ${key}.pub"
-	  fi
-	fi
+    if [[ $res -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
+      if ! ssh-add -d "${key}"; then
+        logWarn "Could not unregister key: ${key}"
+      fi
+      if ! rm -f "${key}"; then
+        logWarn "Failure to delete private key ${key}"
+      fi
+      if ! rm -f "${key}.pub"; then
+        logWarn "Failure to delete private key ${key}.pub"
+      fi
+    fi
   done
   keys_to_clean=()
 

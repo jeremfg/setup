@@ -53,7 +53,6 @@ netdata_test_email() {
 NETDATA_CONFIG_DIR="/etc/netdata"
 NETDATA_NOTIFY_CONF="${NETDATA_CONFIG_DIR}/health_alarm_notify.conf"
 
-
 ###########################
 ###### Startup logic ######
 ###########################

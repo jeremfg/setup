@@ -23,20 +23,20 @@ ssh_test_connection() {
 }
 
 ssh_agent_install() {
-    # Check if we have ssh support
-  if ! command -v ssh &> /dev/null; then
+  # Check if we have ssh support
+  if ! command -v ssh &>/dev/null; then
     logError "ssh not found"
     return 1
   fi
-  if ! command -v ssh-agent &> /dev/null; then
+  if ! command -v ssh-agent &>/dev/null; then
     logError "ssh-agent not found"
     return 1
   fi
-  if ! command -v ssh-add &> /dev/null; then
+  if ! command -v ssh-add &>/dev/null; then
     logError "ssh-add not found"
     return 1
   fi
-  if ! command -v ssh-keygen &> /dev/null; then
+  if ! command -v ssh-keygen &>/dev/null; then
     logError "ssh-add not found"
     return 1
   fi
@@ -51,7 +51,8 @@ ssh_agent_install() {
   # Only create the file if it doesn't exist already
   if [[ ! -f "${config_filename}" ]]; then
     local file
-    file=$(cat <<EOF
+    file=$(
+      cat <<EOF
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
@@ -77,7 +78,7 @@ EOF
 
     logInfo "Creating SSH configuration file: ${config_filename}"
     mkdir -p "$(dirname ${config_filename})"
-    echo "${file}" > "${config_filename}"
+    echo "${file}" >"${config_filename}"
   else
     logInfo "SSH configuration already present"
   fi
@@ -143,7 +144,7 @@ ssh_key_install() {
 ssh_next_key_name() {
   local _filename="$1"
   local prefix="$2"
-  
+
   # Find an available filename
   local myfile
   local i=0
@@ -215,16 +216,16 @@ Please select one of the options below:
 EOF
 
   for i in "${!options[@]}"; do
-   echo "  $((i+1)). ${options[$i]}"
+    echo "  $((i + 1)). ${options[$i]}"
   done
 
   # Read user input
   local choice
   while true; do
-    read -rp "Enter the number of your choice: " choice < /dev/tty
-    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
+    read -rp "Enter the number of your choice: " choice </dev/tty
+    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
       logInfo "User chose option ${choice}: ${options[choice - 1]}"
-      break;
+      break
     else
       echo "Invalid choice. Please try again."
     fi
@@ -232,39 +233,39 @@ EOF
 
   # Process user choice
   case $choice in
-    1)
-      logInfo "User chose to abort"
-      return 2
-      ;;
-    2)
-      logInfo "User chose to generate a new SSH key"
-      # Ask user for his email address
-      if ssh_generate_keypair "${suggested_key}"; then
-        eval "$private_key='${suggested_key}'"
-        return 0
-      else
-        return 1
-      fi
-      ;;
-    3)
-      logInfo "User chose to paste an existing SSH private key"
-      # Ask user for key, read input and write to file
-      if git_paste_key "${suggested_key}"; then
-        eval "$private_key='${suggested_key}'"
-        return 0
-      else
-        return 1
-      fi
-      ;;
-    *)
-      local ssh_file="${ssh_files[$((choice - 4))]}"
-	  if ! chmod 0600 ${ssh_file}; then
-	    logError "Failed to change permissions on key file"
-	  fi
-      logInfo "User chose to use existing private key: ${ssh_file}"
-      eval "$private_key='${ssh_file}'"
+  1)
+    logInfo "User chose to abort"
+    return 2
+    ;;
+  2)
+    logInfo "User chose to generate a new SSH key"
+    # Ask user for his email address
+    if ssh_generate_keypair "${suggested_key}"; then
+      eval "$private_key='${suggested_key}'"
       return 0
-      ;;
+    else
+      return 1
+    fi
+    ;;
+  3)
+    logInfo "User chose to paste an existing SSH private key"
+    # Ask user for key, read input and write to file
+    if git_paste_key "${suggested_key}"; then
+      eval "$private_key='${suggested_key}'"
+      return 0
+    else
+      return 1
+    fi
+    ;;
+  *)
+    local ssh_file="${ssh_files[$((choice - 4))]}"
+    if ! chmod 0600 ${ssh_file}; then
+      logError "Failed to change permissions on key file"
+    fi
+    logInfo "User chose to use existing private key: ${ssh_file}"
+    eval "$private_key='${ssh_file}'"
+    return 0
+    ;;
   esac
 
   return 1
@@ -310,12 +311,12 @@ $(cat "${_prv_key}.pub")
 ---------------------------------
 Press [Enter] when you are done registering your key
 EOF
-    # Wait for user to press Enter
-    read < /dev/tty
+      # Wait for user to press Enter
+      read </dev/tty
     fi
   else
     echo "Error: This is not a valid email address" >&2
-    return 1  # Invalid email
+    return 1 # Invalid email
   fi
 
   return 0
