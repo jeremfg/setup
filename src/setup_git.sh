@@ -539,7 +539,7 @@ sg_pkg_install_from() {
 
   # Check if we have something to install
   if [[ ${#to_install[@]} -gt 0 ]]; then
-    if ! eval "${fct_install}" "\"${repo}\"" "\"${to_install[@]}\""; then
+    if ! eval "${fct_install}" "\"${repo}\"" "\"${to_install[*]}\""; then
       sg_print "Failed to install packages"
       return 1
     fi

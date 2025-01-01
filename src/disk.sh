@@ -69,6 +69,7 @@ disk_root_partition() {
       logError "Only raid1 arrays of two drives are supported"
       return 1
     fi
+    # shellcheck disable=SC2128
     if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true); then
       logError "Failed to find boot drive"
       return 1
@@ -238,7 +239,7 @@ disk_get_available() {
   if lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
     logTrace "Drive ${drive} contains boot partition"
     # Read last usable sector
-    if ! __res1=$(sgdisk -p /dev/${drive}); then
+    if ! __res1=$(sgdisk -p "/dev/${drive}"); then
       logError "Failed to find last usable sector"
       return 1
     else

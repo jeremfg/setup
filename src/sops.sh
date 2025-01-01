@@ -47,7 +47,7 @@ sops_install_ubuntu() {
   local url installer location
   url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
   location="${DOWNLOAD_DIR}/${installer}"
-  installer="$(basename ${url})"
+  installer="$(basename "${url}")"
   if [[ ! -f "${location}" ]]; then
     logTrace "Downloading into ${location} from ${url}"
     if ! curl -sSL -o "${location}" "${url}"; then
