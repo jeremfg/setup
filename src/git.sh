@@ -65,6 +65,8 @@ git_configure() {
   cur_email=$(cd "${repo_dir}" && git config user.email)
 
   # If git user is not configured, ask the user about it
+  local user
+  local email
   if [[ -z "${cur_user}" ]] || [[ -z "${cur_email}" ]]; then
     # Ask user if he's happy withy the current user, providing the current as default
     cat <<EOF
@@ -77,8 +79,6 @@ The following user is currently configured
 
 Please change the values if needed (10 seconds timeout)
 EOF
-    local user
-    local email
     os_ask_user user "Git friendly user" "${cur_user}"
     os_ask_user email "Git email address" "${cur_email}"
 
@@ -99,6 +99,9 @@ EOF
         return 1
       fi
     fi
+  else
+    user="${cur_user}"
+    email="${cur_email}"
   fi
 
   # Configure push.default to simple, if not already set
