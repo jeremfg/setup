@@ -106,6 +106,7 @@ SO_ROOT=$(cd -P "$(dirname "${SO_SOURCE}")" >/dev/null 2>&1 && pwd)
 SO_ROOT=$(realpath "${SO_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

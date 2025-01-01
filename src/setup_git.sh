@@ -82,7 +82,7 @@ EOF
     # shellcheck disable=SC2068
     ${SG_COMMAND[@]}
     res=$?
-    popd >/dev/null !! return 1
+    popd >/dev/null || return 1
 
     # shellcheck disable=SC2248
     return ${res}
@@ -453,7 +453,7 @@ EOF
     for releaseFile in /etc/*release; do
       if [[ -f ${releaseFile} ]]; then
         sg_print "=== Contents of ${releaseFile} ==="
-        cat "${releaseFile}" | sg_print || true
+        sg_print <"${releaseFile}"
       fi
     done
     sg_print <<EOF
@@ -539,7 +539,7 @@ sg_pkg_install_from() {
 
   # Check if we have something to install
   if [[ ${#to_install[@]} -gt 0 ]]; then
-    if ! eval "${fct_install}" "\"${repo}\"" \"${to_install[@]}\"; then
+    if ! eval "${fct_install}" "\"${repo}\"" "\"${to_install[@]}\""; then
       sg_print "Failed to install packages"
       return 1
     fi
@@ -858,7 +858,6 @@ sg_trap_exit() {
 # Variables loaded externally
 ID=""
 ID_LIKE=""
-
 
 ###########################
 ###### Startup logic ######

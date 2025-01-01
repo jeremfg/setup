@@ -160,7 +160,7 @@ nut_set_mode() {
 
   # Read current mode
   local current_mode
-  current_mode=$(grep -E "^MODE=" ${nut_cfg} | cut -d'=' -f2 || true)
+  current_mode=$(grep -E "^MODE=" "${nut_cfg}" | cut -d'=' -f2 || true)
   if [[ -z ${current_mode} ]]; then
     logError "Failed to read current mode"
     return 1

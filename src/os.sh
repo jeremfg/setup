@@ -17,6 +17,8 @@ os() {
   if [[ ${res} -eq 0 ]]; then
     echo "${myvar}"
   fi
+
+  # shellcheck disable=SC2248
   return ${res}
 }
 
@@ -75,6 +77,7 @@ os_ask_user() {
   local res
   # Ask user for input, using timeout if default value is not empty
   if [[ -z "${default}" ]]; then
+    # shellcheck disable=SC2162
     read -p "${question} [${default}]: " myvar </dev/tty
     res=$?
   else

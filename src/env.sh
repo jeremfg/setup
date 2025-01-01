@@ -85,7 +85,7 @@ env_add() {
     logInfo "[inserted] export ${prop}=${val}"
   fi
 
-  # shellcheck disable=SC1091
+  # shellcheck disable=SC1090
   source "${rcFile}"
 
   return 0
@@ -139,7 +139,7 @@ env_config() {
     return 1
   fi
 
-  # shellcheck disable=SC1091
+  # shellcheck disable=SC1090
   source "${rcFile}"
 
   return 0

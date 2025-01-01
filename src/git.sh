@@ -258,7 +258,7 @@ git_ssh_config() {
   fi
 
   # Cleanup keys
-  for key in ${keys_to_clean[@]}; do
+  for key in "${keys_to_clean[@]}"; do
     if [[ ${res} -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
       if ! ssh-add -d "${key}"; then
         logWarn "Could not unregister key: ${key}"
@@ -293,6 +293,7 @@ GG_ROOT=$(cd -P "$(dirname "${GG_SOURCE}")" >/dev/null 2>&1 && pwd)
 GG_ROOT=$(realpath "${GG_ROOT}/..")
 
 # Import dependencies
+# shellcheck disable=SC1091
 if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1

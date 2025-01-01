@@ -50,7 +50,7 @@ age_install() {
   local binfile sim_file
   for binfile in "${BIN_DIR}/age"/*; do
     if [[ -x "${binfile}" ]]; then
-      sim_file="${HOME}/bin/$(basename ${binfile})"
+      sim_file="${HOME}/bin/$(basename "${binfile}")"
       if ! mkdir -p "${HOME}/bin"; then
         logError "Failed to create directory for binaries"
         return 1

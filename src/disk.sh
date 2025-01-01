@@ -250,15 +250,6 @@ disk_get_available() {
         logWarn "Drive ${drive} is not aligned (${__res1} % 512 != 0)"
       fi
     fi
-    else
-      # Go past the GPT header (34 sectors)
-      __res1=$((__res1 + 34))
-
-      # Sanity check, we should be on a 512-byte boundary
-      if [[ $((__res1 % 512)) -ne 0 ]]; then
-        logWarn "Drive ${drive} is not aligned (${__res1} % 512 != 0)"
-      fi
-    fi
   else
     __res1=0
     logTrace "Start sector [${drive}]: ${__res1}"
