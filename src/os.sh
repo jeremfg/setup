@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # SPDX-License-Identifier: MIT
 #
 # This script is used to identify the OS
@@ -54,7 +54,7 @@ os_get_next_filename() {
 # Parameters:
 #   $1[out]: Current OS
 os_identify() {
-  # Function is maintained in setup_git.sh
+  # Function is maintained in setup_git
   sg_os_identify "${1}"
   return $?
 }
@@ -180,8 +180,8 @@ if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
-if ! source "${OS_ROOT}/src/setup_git.sh"; then
-  logFatal "Failed to import setup_git.sh"
+if ! source "${OS_ROOT}/src/setup_git"; then
+  logFatal "Failed to import setup_git"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

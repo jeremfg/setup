@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # SPDX-License-Identifier: MIT
 #
 # This script is used to configure OS packages
@@ -56,6 +56,5 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  pkg_install "${@}"
-  exit $?
+  logFatal "This script cannot be executed"
 fi

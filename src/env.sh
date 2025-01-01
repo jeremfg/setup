@@ -169,8 +169,8 @@ fi
 if ! source "${EV_ROOT}/src/os.sh"; then
   logFatal "Failed to import os.sh"
 fi
-if ! source "${EV_ROOT}/src/setup_git.sh"; then
-  logFatal "Failed to import setup_git.sh"
+if ! source "${EV_ROOT}/src/setup_git"; then
+  logFatal "Failed to import setup_git"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
