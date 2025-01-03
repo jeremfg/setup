@@ -335,9 +335,18 @@ done
 NU_ROOT=$(cd -P "$(dirname "${NU_SOURCE}")" >/dev/null 2>&1 && pwd)
 NU_ROOT=$(realpath "${NU_ROOT}/..")
 
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX}" ]]; then
+  if [[ $(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="${HOME}/.local"
+  fi
+fi
+
 # Import dependencies
 # shellcheck disable=SC1091
-if ! source "${PREFIX:-/usr/local}/lib/slf4.sh"; then
+if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
