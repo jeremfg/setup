@@ -59,7 +59,7 @@ disk_root_partition() {
     # shellcheck disable=SC2128
     _boot_partition="${_boot_drive}"
     # We will need to retrieve which drives are part of this array
-    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Active Devices' | awk '{print $4}' || true); then
+    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Working Devices' | awk '{print $4}' || true); then
       logError "Failed to find boot drive"
       return 1
     else
@@ -88,6 +88,91 @@ disk_root_partition() {
   # Use indirect variable references to return the array and partition
   eval "${__result_boot_drive}=(\"\${_boot_drive[@]}\")"
   eval "${__result_boot_partition}='${_boot_partition}'"
+  return 0
+}
+
+# Enumerates all loop devices
+#
+# Parameters:
+#   $1[out]: An array of all the loop devices
+# Returns:
+#   0: If the loop devices were successfully enumerated
+#   1: If the loop devices could not be enumerated
+disk_list_loop() {
+  local __result_loops="${1}"
+  local res
+
+  if [[ -z ${__result_loops} ]]; then
+    logError "Variables not set"
+    return 1
+  fi
+
+  if ! res=$(losetup -O NAME); then
+    logError "Failed to list loop devices"
+    return 1
+  elif ! res=$(echo "${res}" | tail -n +2 | sed 's|/dev/||' || true); then
+    logError "Failed to format loop devices"
+    return 1
+  fi
+
+  # Turn members into an array
+  IFS=$'\n' read -r -d '' -a _loops <<<"$(echo -e "${res}")"
+
+  # Use indirect variable references to return the array
+  eval "${__result_loops}=(\"\${_loops[@]}\")"
+  return 0
+}
+
+# Retrieves the details of a loop device
+#
+# Parameters:
+#   $1[out]: The device
+#   $2[out]: The offset
+#   $3[out]: The size
+#   $4[in]: The loop device
+# Returns:
+#   0: If the loop device details were successfully retrieved
+#   1: If the loop device details could not be retrieved
+# Retrieves the details of a loop device
+#
+# Parameters:
+#   $1[out]: The device
+#   $2[out]: The offset
+#   $3[out]: The size
+#   $4[in]: The loop device
+# Returns:
+#   0: If the loop device details were successfully retrieved
+#   1: If the loop device details could not be retrieved
+disk_loop_details() {
+  local __result_device="${1}"
+  local __result_offset="${2}"
+  local __result_size="${3}"
+  local loop="${4}"
+
+  if [[ -z ${__result_device} ]] || [[ -z ${__result_offset} ]] || [[ -z ${__result_size} ]] || [[ -z ${loop} ]]; then
+    logError "Variables not set"
+    return 1
+  fi
+
+  local __res1
+  if ! __res1=$(losetup --list --output NAME,BACK-FILE,OFFSET,SIZELIMIT | grep "${loop} " || true); then
+    logError "Failed to find loop device details: ${__res1}"
+    return 1
+  fi
+
+  # Extract the details
+  # shellcheck disable=SC2206 # We want to split the string into an array
+  __res1=(${__res1})
+  __res1[0]=${__res1[0]#/dev/}
+  __res1[1]=${__res1[1]#/dev/}
+  __res1[2]=$((__res1[2] / 512))
+  __res1[3]=$((__res1[3] / 512))
+  logTrace "Loop device ${__res1[0]}: Back File: ${__res1[1]}, Offset: ${__res1[2]}, Size: ${__res1[2]}"
+
+  eval "${__result_device}='${__res1[1]}'"
+  eval "${__result_offset}='${__res1[2]}'"
+  eval "${__result_size}='${__res1[3]}'"
+
   return 0
 }
 
@@ -328,18 +413,79 @@ disk_assemble_radi1() {
   local drive="${1}"
   local drive1="${2}"
   local drive2="${3}"
+  local __res1 __res2
 
   if [[ -z ${drive} ]] || [[ -z ${drive1} ]] || [[ -z ${drive2} ]]; then
     logError "Variables not set: drive=${drive}, drive1=${drive1}, drive2=${drive2}"
     return 1
   fi
 
-  if ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
-    logError "Failed to assemble raid1"
-    return 1
-  fi
+  # First, check if the raid array is already assembled
+  if __res1=$(mdadm --detail "/dev/${drive}"); then
+    logInfo "/dev/${drive} already exists"
 
-  return 0
+    # Confirm array state
+    __res2=$(echo "${__res1}" | grep 'State :' | awk '{print $3}' || true)
+    case ${__res2} in
+    clean)
+      logInfo "Array is clean"
+      ;;
+    *)
+      logWarn "Array is in an unkown state: ${__res2}"
+      return 1
+      ;;
+    esac
+
+    # Confirm RAID level
+    __res2=$(echo "${__res1}" | grep 'Raid Level :' | awk '{print $4}' || true)
+    if [[ "${__res2}" != "raid1" ]]; then
+      logWarn "Array is not raid1, but \"${__res2}\""
+      return 1
+    else
+      logTrace "Array is raid1 as expected"
+    fi
+
+    # Confirm RAID devices
+    __res2=$(echo "${__res1}" | grep 'Working Devices :' | awk '{print $4}' || true)
+    if [[ ${__res2} -ne 2 ]]; then
+      logWarn "Array does not have 2 working devices"
+      return 1
+    else
+      logTrace "Array has 2 members as expected"
+    fi
+
+    # Confirm RAID members
+    local member member1 member2
+    __res2=$(echo "${__res1}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${drive}" | sort | uniq || true)
+    IFS=$'\n' read -r -d '' -a __res2 <<<"$(echo -e "${__res2}")"
+    for member in "${__res2[@]}"; do
+      if [[ "${member}" == "/dev/${drive1}" ]]; then
+        member1="${member}"
+        logTrace "Found member1: ${member1}"
+      elif [[ "${member}" == "/dev/${drive2}" ]]; then
+        member2="${member}"
+        logTrace "Found member2: ${member2}"
+      else
+        logWarn "Unknown member: ${member}"
+        return 1
+      fi
+    done
+    if [[ -z ${member1} ]] || [[ -z ${member2} ]]; then
+      logWarn "Missing members for RAID array ${drive}"
+      return 1
+    else
+      logInfo "RAID array ${drive} is already assembled"
+      return 0
+    fi
+  else
+    if ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
+      logError "Failed to assemble raid1"
+      return 1
+    else
+      logInfo "/dev/${drive} did not exist and was assembled"
+      return 0
+    fi
+  fi
 }
 
 # Formats a partition
@@ -376,19 +522,31 @@ disk_format() {
 #   1: If the loop device could not be removed
 disk_remove_loop() {
   local loop="${1}"
+  local __res1
 
   if [[ -z ${loop} ]]; then
     logError "Variables not set: loop=${loop}"
     return 1
   fi
 
+  # Check if loop device exists
+  if __res=$(losetup --list --output NAME); then
+    if ! echo "${__res}" | grep -q "${loop}"; then
+      logInfo "Loop device ${loop} does not exist"
+      return 0
+    fi
+  else
+    logError "Failed to list loop devices: ${__res}"
+  fi
+
   if ! losetup --detach "${loop}"; then
     logError "Failed to remove loop device"
     return 1
+  else
+    logInfo "Loop device ${loop} was removed succssfully"
   fi
 
   return 0
-
 }
 
 # Remove a raid array
@@ -406,9 +564,15 @@ disk_remove_raid() {
     return 1
   fi
 
-  if ! mdadm --stop "/dev/${raid}"; then
-    logError "Failed to remove raid array"
-    return 1
+  if mdadm --detail "/dev/${raid}" &>/dev/null; then
+    if ! mdadm --stop "/dev/${raid}"; then
+      logError "Failed to remove raid array"
+      return 1
+    else
+      logInfo "Raid array /dev/${raid} was removed"
+    fi
+  else
+    logInfo "Raid array /dev/${raid} does not exist"
   fi
 
   return 0

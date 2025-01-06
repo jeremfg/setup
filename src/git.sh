@@ -259,7 +259,7 @@ git_ssh_config() {
 
   # Cleanup keys
   for key in "${keys_to_clean[@]}"; do
-    if [[ ${res} -ne 0 ]] || [[ "${key}" == "${actual_key}" ]]; then
+    if [[ ${res} -ne 0 ]] || [[ "${key}" != "${actual_key}" ]]; then
       if ! ssh-add -d "${key}"; then
         logWarn "Could not unregister key: ${key}"
       fi

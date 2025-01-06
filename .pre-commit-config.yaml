@@ -56,3 +56,11 @@ repos:
     rev: v0.14.0  # Latest version from Google
     hooks:
       - id: yamlfmt  # YAML
+  - repo: local
+    hooks:
+      - id: PSScriptAnalyzer
+        name: PSScriptAnalyzer
+        description: Run PSScriptAnalyzer on commit
+        entry: ./tools/PSScriptAnalyzer/Invoke-PSSAPreCommitHook.ps1
+        language: script
+        pass_filenames: false

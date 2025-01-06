@@ -26,10 +26,7 @@ sops_install() {
   local cur_os
   os_identify cur_os
   local fct_name="sops_install_${cur_os}"
-  local res
-  ${fct_name}
-  res=$?
-  if [[ ${res} -eq 0 ]]; then
+  if ${fct_name}; then
     if command -v sops &>/dev/null; then
       logInfo "SOPS was installed successfully"
       return 0
@@ -37,17 +34,17 @@ sops_install() {
       logError "Could not detect SOPS installation"
       return 1
     fi
+  else
+    return 1
   fi
-
-  return $?
 }
 
 # Untested
 sops_install_ubuntu() {
   local url installer location
   url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
-  location="${DOWNLOAD_DIR}/${installer}"
   installer="$(basename "${url}")"
+  location="${DOWNLOAD_DIR}/${installer}"
   if [[ ! -f "${location}" ]]; then
     logTrace "Downloading into ${location} from ${url}"
     if ! curl -sSL -o "${location}" "${url}"; then
@@ -64,15 +61,15 @@ sops_install_ubuntu() {
 sops_install_centos() {
   local url installer location
   url="${SOPS_URL_BASE}${SOPS_REDHAT}"
-  location="${DOWNLOAD_DIR}/${installer}"
   installer="$(basename "${url}")"
+  location="${DOWNLOAD_DIR}/${installer}"
   if [[ ! -f "${location}" ]]; then
     if ! mkdir -p "$(dirname "${location}")"; then
       logError "Failed to create directory for SOPS installer"
       return 1
     fi
     logTrace "Downloading into ${location} from ${url}"
-    if ! curl -sSLo "${location}" "${url}"; then
+    if ! curl -sSL -o "${location}" "${url}"; then
       logError "Failed to download SOPS installer"
       return 1
     fi

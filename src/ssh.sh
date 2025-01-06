@@ -250,7 +250,7 @@ EOF
   3)
     logInfo "User chose to paste an existing SSH private key"
     # Ask user for key, read input and write to file
-    if git_paste_key "${suggested_key}"; then
+    if ssh_paste_key "${suggested_key}"; then
       eval "${private_key}='${suggested_key}'"
       return 0
     else

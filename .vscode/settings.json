@@ -1,0 +1,6 @@
+{
+  // Needed for pre-commit not being on PATH
+  "terminal.integrated.env.windows": {
+    "PATH": "${env:PATH};${env:APPDATA}\\Python\\Python310\\Scripts"
+  }
+}
