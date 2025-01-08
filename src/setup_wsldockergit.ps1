@@ -16,9 +16,6 @@
 # %cd%\setup_wsldockergit.bat & setup_wsldockergit.bat -RepoUrl "git@github.com:jeremfg/setup.git" ^
 # -RepoRef "main" -EntryPoint "echo 'Welcome to Setup!'"
 #
-# Todo:
-# - Make sure that the automatic execution after reboot uses the same arguments that were orginally passed (untested)
-#
 # NOTE: Designed to run on a fresh Windows 10 install or later
 
 Param(
@@ -128,6 +125,10 @@ function Get-Repo {
   Invoke-WslCommand -Name "$(Get-LatestUbuntuDistro)" -WorkingDirectory "$global:RepoDir" `
     -Command "$linuxCmd"
 
+  # Erasing arguments, as from now on we have nothing more to invoke.
+  # This will break the loop in Reset-AutoExec that wishes to re-elevate privileges again
+  $global:all_args = @()
+
   Write-Log -Level 'INFO' -Message "Setup completed successfully"
 }
 
@@ -156,9 +157,30 @@ function Install-Winget {
     Get-Command winget -ErrorAction Stop >$null
   } catch {
       Write-Log -Level 'INFO' -Message "WinGet doesn't seem to be installed. Installing..."
+
       Assert-Admin "to install WinGet"
-      Invoke-RestMethod "https://github.com/asheroto/winget-install/releases/latest/download/winget-install.ps1" | `
-        Invoke-Expression -ArgumentList '-NoExit'
+
+      $url = "https://github.com/asheroto/winget-install/releases/latest/download/winget-install.ps1"
+      $file = Split-Path $url -Leaf
+      Invoke-RestMethod -Uri $url -OutFile $file -ErrorAction Stop
+
+      # Run the downloaded script with -NoExit parameter
+      $wingetter = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$file`"" -Wait -PassThru
+
+      # Check if $wingetter is null
+      if ($null -eq $wingetter) {
+        Write-Log -Level 'ERROR' -Message "Failed to start the WinGet installation script"
+        exit 1
+      }
+
+      if ($wingetter.ExitCode -ne 0) {
+        Write-Log -Level 'ERROR' -Message "WinGet failed to install"
+        exit 1
+      }
+
+      # Delete the downloaded script
+      Remove-Item -Path $file -Force
+
       try {
         Get-Command winget -ErrorAction Stop >$null
       } catch {
@@ -445,7 +467,7 @@ function Set-AutoExec {
     try {
       # Define the action to run your script on startup
       $Action = New-ScheduledTaskAction -Execute 'Powershell.exe' `
-      -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$($global:MyInvocation.MyCommand.Path)`" $global:args"
+      -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$($global:MyInvocation.MyCommand.Path)`" $global:all_args"
 
       # Define the trigger for the task (at startup)
       $Trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -453,7 +475,7 @@ function Set-AutoExec {
       # Register the scheduled task
       Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $AutoExecName -User $env:USERNAME -Force
     } catch {
-      Write-Log -Level 'ERROR'-Message "Failed to create '{0}'" -Arguments $AutoExecName
+      Write-Log -Level 'ERROR' -Message "Failed to create '{0}'" -Arguments $AutoExecName
       exit 1
     }
 
@@ -505,10 +527,16 @@ function Assert-NotAdmin {
   } else {
     Write-Log -Level 'WARNING' -Message "You have administrative privileges currently. Unelevation required to perform this task. Unelevating..."
     try {
-      # Restart the script without administrative privileges
-      Start-Process -FilePath "runas" -ArgumentList `
-      "/trustlevel:0x20000 /machine:amd64 `"powershell.exe -ExecutionPolicy Bypass -File $($global:MyInvocation.MyCommand.Path) $global:args`""
-    } catch {
+     # Restart the script without administrative privileges
+     $scriptPath = $global:MyInvocation.MyCommand.Path
+     $allArgs = $global:all_args -join ' '
+     $escapedArgs = $allArgs -replace '"', '\"'
+     $command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" $escapedArgs"
+     $runasCommand = "/user:$(whoami) `"$command`""
+     Write-Log -Level 'DEBUG' -Message "Running command: $runasCommand"
+     Start-Sleep -Seconds 1 # Make sure output is clean before launching
+     Start-Process -FilePath "runas" -ArgumentList $runasCommand -Wait -NoNewWindow
+   } catch {
       Write-Log -Level 'ERROR' -Message "Unelevation failed. Exiting in error..."
       exit 1
    }
@@ -532,7 +560,7 @@ function Assert-Admin {
     try {
       # Restart the script with administrative privileges
       Start-Process -FilePath "powershell.exe" -ArgumentList `
-      "-NoProfile -ExecutionPolicy Bypass -File `"$($global:MyInvocation.MyCommand.Path)`" $global:args" `
+      "-NoProfile -ExecutionPolicy Bypass -File `"$($global:MyInvocation.MyCommand.Path)`" $global:all_args" `
       -Verb RunAs
     } catch {
       Write-Log -Level 'ERROR' -Message "Elevation failed. Exiting in error..."
@@ -733,6 +761,20 @@ try {
   ###############
   # Entry Point #
   ###############
+  $global:all_args = @()
+  # Add bound parameters with their names
+  foreach ($param in $PSBoundParameters.GetEnumerator()) {
+    $global:all_args += "-$($param.Key)"
+    if ($null -ne $param.Value) {
+      $global:all_args += '"' + $param.Value + '"'
+    }
+  }
+
+  # Add any additional arguments
+  $global:all_args += "$args"
+
+  Write-Output "Starting with args: $global:all_args"
+
   main
 
   # Ending log, and make sure everything is flushed before exiting

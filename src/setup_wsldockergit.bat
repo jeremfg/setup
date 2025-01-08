@@ -33,12 +33,5 @@ if not exist "%pwd%%scriptName%" (
 powershell.exe -ExecutionPolicy Bypass -File "%pwd%%scriptName%" %*
 set ret_code=%errorlevel%
 
-:: If all went well, delete everything
-if %ret_code% equ 0 (
-  del '%pwd%%scriptName%'
-  rmdir /s /q '%pwd%.log'
-  del '%~f0'
-)
-
 exit /b %ret_code%
 endlocal
