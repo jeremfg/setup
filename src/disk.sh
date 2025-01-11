@@ -430,6 +430,30 @@ disk_assemble_radi1() {
     clean)
       logInfo "Array is clean"
       ;;
+    inactive)
+      logInfo "Array is inactive"
+      __res2=$(echo "${__res1}" | grep 'Total Devices :' | awk '{print $4}' || true)
+      if [[ ${__res2} -eq 1 ]]; then
+        logInfo "Array has only 1 member device. Known situation. Stopping the array..."
+        # This occurs when the OS automounts on startup.
+        # while only one drive is available. A typical scneario in our use case, because the
+        # loop device for DRIVE2 is not created until later. We just need to stop this array
+        # and reassemble it ourselves.
+        if ! mdadm --stop "/dev/${drive}"; then
+          logError "Failed to stop raid1"
+          return 1
+        elif ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
+          logError "Failed to assemble raid1"
+          return 1
+        else
+          logInfo "Array was stopped and reassembled"
+          return 0
+        fi
+      else
+        logError "Array has ${__res2} members. This is unexpected"
+        return 1
+      fi
+      ;;
     *)
       logWarn "Array is in an unkown state: ${__res2}"
       return 1

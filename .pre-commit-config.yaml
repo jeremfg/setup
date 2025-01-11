@@ -61,6 +61,6 @@ repos:
       - id: PSScriptAnalyzer
         name: PSScriptAnalyzer
         description: Run PSScriptAnalyzer on commit
-        entry: ./tools/PSScriptAnalyzer/Invoke-PSSAPreCommitHook.ps1
+        entry: ./tools/PSScriptAnalyzer/entry_point.py
         language: script
         pass_filenames: false
