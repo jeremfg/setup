@@ -60,6 +60,43 @@ var_restore() {
   return $?
 }
 
+# Get environment file
+# Parameters:
+#   $1[out]: Path to the environment file
+# Returns:
+#   0: If the file was found
+#   1: If the file was not found
+env_file() {
+  local __return_env_file="${1}"
+
+  local env_file
+  if [[ -f "${HOME}/.bashrc" ]]; then
+    env_file="${HOME}/.bashrc"
+  elif [[ -f "${HOME}/.bash_profile" ]]; then
+    env_file="${HOME}/.bash_profile"
+  elif [[ -f "${HOME}/.profile" ]]; then
+    env_file="${HOME}/.profile"
+  else
+    logWarn "No environment file found. Determine which one we should create..."
+    local cur_os
+    if ! os_identify cur_os; then
+      logError "Failed to identify the current OS"
+      return 1
+    elif [[ "${cur_os}" == "centos" ]]; then
+      env_file="${HOME}/.bashrc"
+    elif [[ "${cur_os}" == "alpine" ]]; then
+      env_file="${HOME}/.profile"
+    else
+      logError "Unsupported OS: ${cur_os}"
+      return 1
+    fi
+  fi
+
+  logTrace "Determined env file: ${env_file}"
+  eval "${__return_env_file}='${env_file}'"
+  return 0
+}
+
 # https://askubuntu.com/a/1463894
 # Adds an environment variable to bashrc
 #
@@ -68,21 +105,27 @@ var_restore() {
 #
 # return: 0 if successful, 1 otherwise
 env_add() {
-  if [[ -z "$1" ]] || [[ -z "$2" ]]; then
+  local prop="$1" # export property to insert
+  local val="$2"  # the desired value
+
+  if [[ -z "${prop}" ]] || [[ -z "${val}" ]]; then
     echo "Expected 2 non-empty arguments"
     return 1
   fi
 
-  local rcFile="${HOME}/.bashrc"
-  local prop="$1" # export property to insert
-  local val="$2"  # the desired value
+  # Determine which file to modify based on OS/distro
+  local rcFile
+  if ! env_file rcFile; then
+    logError "Failed to determine the environment file"
+    return 1
+  fi
 
-  if grep -q "^export ${prop}=" "${rcFile}"; then
+  if grep -q "^export ${prop}=" "${rcFile}" &>/dev/null; then
     sed -i "s,^export ${prop}=.*$,export ${prop}=${val}," "${rcFile}"
     logInfo "[updated] export ${prop}=${val}"
   else
     echo -e "export ${prop}=${val}" >>"${rcFile}"
-    logInfo "[inserted] export ${prop}=${val}"
+    logInfo "[created] export ${prop}=${val}"
   fi
 
   # shellcheck disable=SC1090
@@ -99,13 +142,19 @@ env_add() {
 # Returns:
 #   0: If successfully removed
 env_del() {
-  if [[ -z "$1" ]]; then
+  local prop="$1" # export property to delete
+  
+  if [[ -z "${prop}" ]]; then
     echo "Expected 1 non-empty arguments"
     return 1
   fi
 
-  local rcFile=~/.bashrc
-  local prop="$1"
+  # Determine which file to modify based on OS/distro
+  local rcFile
+  if ! env_file rcFile; then
+    logError "Failed to determine the environment file"
+    return 1
+  fi
 
   if grep -q "^export ${prop}=" "${rcFile}"; then
     sed -i "/^export ${prop}=.*$/d" "${rcFile}"
@@ -134,7 +183,13 @@ env_config() {
     return 1
   fi
 
-  local rcFile=~/.bashrc
+  # Determine which file to modify based on OS/distro
+  local rcFile
+  if ! env_file rcFile; then
+    logError "Failed to determine the environment file"
+    return 1
+  fi
+
   if ! os_add_config "${rcFile}" "${cfg_line}"; then
     return 1
   fi

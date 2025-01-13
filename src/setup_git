@@ -424,6 +424,10 @@ sg_os_identify() {
         sg_print "Identified ubuntu"
         break
         ;;
+      alpine)
+        eval "${_os}='alpine'"
+        sg_print "Identified alpine"
+        ;;
       *)
         sg_print "Unknown OS: ${curId}"
         ;;
