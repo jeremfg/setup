@@ -143,7 +143,7 @@ env_add() {
 #   0: If successfully removed
 env_del() {
   local prop="$1" # export property to delete
-  
+
   if [[ -z "${prop}" ]]; then
     echo "Expected 1 non-empty arguments"
     return 1
