@@ -603,8 +603,8 @@ disk_remove_raid() {
 }
 
 # Variables loaded externally
-LOG_LEVEL=""
-LOG_LEVEL_TRACE=""
+if [[ -z "${LOG_LEVEL}" ]]; then LOG_LEVEL=""; fi
+if [[ -z "${LOG_LEVEL_TRACE}" ]]; then LOG_LEVEL_TRACE=""; fi
 
 ###########################
 ###### Startup logic ######

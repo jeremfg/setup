@@ -914,8 +914,8 @@ sg_trap_exit() {
 }
 
 # Variables loaded externally
-ID=""
-ID_LIKE=""
+if [[ -z "${ID}" ]]; then ID=""; fi
+if [[ -z "${ID_LIKE}" ]]; then ID_LIKE=""; fi
 
 ###########################
 ###### Startup logic ######
