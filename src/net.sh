@@ -275,7 +275,7 @@ nu_scp_cmd() {
   _scp_rem+="${__scp_host}"
   _scp_rem+=":/${__scp_path}"
   _scp_cmd=()
-  _scp_cmd+=(scp -o "StrictHostKeyChecking=no -v")
+  _scp_cmd+=(scp -o "StrictHostKeyChecking=no" -v)
   if [[ -n ${__scp_port} ]]; then
     _scp_cmd+=(-P "${__scp_port}")
   fi
