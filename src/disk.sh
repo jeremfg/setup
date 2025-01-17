@@ -346,6 +346,63 @@ disk_get_available() {
   return 0
 }
 
+# Retrieve indentifying information about a drive
+#
+# Parameters:
+#   $1[out]: path to the device
+#   $2[out]: serial number
+#   $3[out]: wwn
+#   $4[in]: The drive name
+# Returns:
+#   0: If the information was successfully retrieved
+#   1: If the information could not be retrieved
+disk_get_info() {
+  local __result_path="${1}"
+  local __result_serial="${2}"
+  local __result_wwn="${3}"
+  local __drive="${4}"
+
+  if [[ -z ${__result_path} ]] || [[ -z ${__result_serial} ]] || [[ -z ${__result_wwn} ]] || [[ -z ${__drive} ]]; then
+    logError "Variables not set"
+    return 1
+  fi
+
+  local __res1 __res2 __res3
+  if ! __res1=$(udevadm info -q path "/dev/${__drive}"); then
+    logError "Failed to find device path"
+    return 1
+  elif [[ -z ${__res1} ]]; then
+    logError "No path for ${__drive}"
+    return 1
+  else
+    logTrace "Path for ${__drive}: ${__res1}"
+  fi
+
+  if ! __res2=$(udevadm info -q property -n "/dev/${__drive}"); then
+    logError "Failed to read information about ${__drive}"
+    return 1
+  elif __res3=$(echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true); then
+    logError "WWN parsing failed for ${__drive}"
+    return 1
+  elif __res2=$(echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true); then
+    logError "Serial number parsing failed for ${__drive}"
+    return 1
+  elif [[ -z ${__res2} ]]; then
+    logError "No serial number for ${__drive}"
+    return 1
+  elif [[ -z ${__res3} ]]; then
+    logError "No WWN for ${__drive}"
+    return 1
+  else
+    logTrace "Serial number for ${__drive}: ${__res2}"
+    logTrace "WWN for ${__drive}: ${__res3}"
+  fi
+
+  eval "${__result_path}='${__res1}'"
+  eval "${__result_serial}='${__res2}'"
+  eval "${__result_wwn}='${__res3}'"
+}
+
 # Creates a new partition on space left unused on a drive
 #
 # Parameters:
