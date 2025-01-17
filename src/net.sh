@@ -213,6 +213,59 @@ nu_file_upload() {
   file)
     logError "file:// not yet implemented"
     return 1
+
+    # Code in comment is legacy to be used as reference when the time comes to
+    # implement it. It for sure doesn't work as-is.
+
+    # # We need to extract the first folder, and use it as share name
+    # local path_regex='^(\/[^\/\n?]+)(\/([^\n?]+))*(.*)$'
+    # if [[ "${path}" =~ ${path_regex} ]]; then
+    #   local share=${BASH_REMATCH[1]}
+    #   path=${BASH_REMATCH[3]}
+    # else
+    #   logFatal "Unable to differentiate share and path in: \"${path}\""
+    # fi
+
+    # # Build file check command
+    # local uri="//${domain}${port}${share}"
+    # local cmd="smbclient '${uri}' -U ${user}%${pwd} -c 'cd \"${path}\" ; ls ${name}'"
+
+    # # Execute check
+    # local not_found_regex="^NT_STATUS_NO_SUCH_FILE listing.*${name}$"
+    # local found_regex="^${name}.* blocks of size .*$"
+    # local res=0
+    # res=$(eval "${cmd}")
+    # res="$(echo "${res%$'\r'}" | xargs)"
+    # local err=$?
+    # if [[ ${err} -ne 0 ]]; then
+    #   if [[ ${err} -eq 1 ]] && [[ "${res}" =~ ${not_found_regex} ]]; then
+    #     logInfo "File does not exists. Proceed with upload..."
+    #     logTrace "${res}"
+    #   else
+    #     logFatal "SMB Failed to list files in: ${uri}/${path} (${err}: ${res})"
+    #   fi
+    # elif [[ -z "${res}" ]]; then
+    #   logFatal "We should not receive an empty response"
+    # elif [[ "${res}" =~ ${found_regex} ]]; then
+    #   logInfo "File already exists"
+    #   logTrace "${res}"
+    #   return 0
+    # else
+    #   echo "${res}"
+    #   logFatal "Did we receive an error?"
+    # fi
+
+    # # Build upload command
+    # local cmd="smbclient '${uri}' -U ${user}%${pwd} -c 'cd \"${path}\" ; put ${i} ${name}'"
+
+    # # Perform the upload
+    # logInfo "SMB upload \"$1\" to: ${uri}/${path}"
+    # if ! eval "${cmd}"; then
+    #   logFatal "SMB Failed to upload \"$1\" to: ${uri}/${path}"
+    # else
+    #   logInfo "Upload of $1 successful"
+    # fi
+    # ;;
     ;;
   *)
     logError "Unsupported protocol: ${_scheme}"
