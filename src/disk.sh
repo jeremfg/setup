@@ -457,6 +457,14 @@ disk_create_raid1() {
     return 1
   fi
 
+  # If a raid array already exists, we need to stop it first
+  if mdadm --detail "/dev/${drive}" &>/dev/null; then
+    if ! mdadm --stop "/dev/${drive}"; then
+      logError "Failed to stop raid1"
+      return 1
+    fi
+  fi
+
   # shellcheck disable=SC2312
   if ! yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
     logError "Failed to create raid1"
