@@ -491,6 +491,8 @@ disk_assemble_radi1() {
 
     # Confirm array state
     __res2=$(echo "${__res1}" | grep 'State :' | awk '{print $3}' || true)
+    # Swallow a possible trailing comma. Exemple: "clean, resyncing"
+    __res2=${__res2%,}
     case ${__res2} in
     clean)
       logInfo "Array is clean"
