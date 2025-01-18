@@ -381,10 +381,10 @@ disk_get_info() {
   if ! __res2=$(udevadm info -q property -n "/dev/${__drive}"); then
     logError "Failed to read information about ${__drive}"
     return 1
-  elif __res3=$(echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true); then
+  elif ! __res3=$(echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true); then
     logError "WWN parsing failed for ${__drive}"
     return 1
-  elif __res2=$(echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true); then
+  elif ! __res2=$(echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true); then
     logError "Serial number parsing failed for ${__drive}"
     return 1
   elif [[ -z ${__res2} ]]; then
