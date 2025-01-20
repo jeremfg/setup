@@ -154,7 +154,7 @@ nu_file_upload() {
 
     # Test if the file is already on the remote host
     local test_cmd
-    test_cmd=(test -e "/${_path}/${_file}")
+    test_cmd=(test -e "/${_path}")
     nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
     _code=$?
     case ${_code} in
@@ -162,7 +162,7 @@ nu_file_upload() {
       logError "File already present on remote\n${_res}"
       return 0
       ;;
-    1)
+    201)
       logInfo "File not present on remote\n${_res}"
       ;;
     255)
@@ -394,6 +394,13 @@ nu_ssh_exec() {
 
   nu_sshpass_exec _ssh_res "${__ssh_pwd}" "${_ssh_cmd[@]}"
   _ssh_code=$?
+
+  # To distinguish between a failed command and a failed connection
+  if [[ ${_ssh_code} -eq 201 ]]; then
+    logWarn "It will be difficult to distinguish between a true error 201 and 1"
+  elif [[ ${_ssh_code} -eq 1 ]]; then
+    _ssh_code=201
+  fi
 
   if [[ -n ${__ssh_output} ]]; then
     eval "${__ssh_output}='${_ssh_res}'"

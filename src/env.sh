@@ -60,6 +60,51 @@ var_restore() {
   return $?
 }
 
+# Replace missing environment variables in-place in the given file
+#
+# Parameters:
+#   $1[in]: Path to the file
+# Returns:
+#   0: If the file was successfully updated
+#   1: If not all variables were replaced
+env_replace_in_place() {
+  local __file="${1}"
+
+  if [[ -z "${__file}" ]]; then
+    logError "No file provided"
+    return 1
+  elif [[ ! -f "${__file}" ]]; then
+    logError "File not found: ${__file}"
+    return 1
+  fi
+
+  # Search for all instances of @<something>@
+  local var_name var_value sed_output
+  local -a var_names
+
+  if ! sed_output=$(sed -n 's/.*@\([^@]*\)@.*/\1/p' "${__file}"); then
+    logError "Failed to extract variable names from ${__file}"
+    return 1
+  fi
+  while IFS= read -r var_name; do
+    var_names+=("${var_name}")
+  done <<<"${sed_output}"
+
+  # Make sure we will be able to replace all variables
+  for var_name in "${var_names[@]}"; do
+    if [[ ! -v "${var_name}" ]]; then
+      logError "Variable \"${var_name}\" not found"
+      return 1
+    fi
+  done
+
+  # Perform the replacements
+  for var_name in "${var_names[@]}"; do
+    var_value="${!var_name}"
+    sed -i "s|@${var_name}@|${var_value}|g" "${__file}"
+  done
+}
+
 # Get environment file
 # Parameters:
 #   $1[out]: Path to the environment file
