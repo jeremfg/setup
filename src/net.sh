@@ -99,6 +99,7 @@ nu_wait_ping() {
 #   $2[in]: URI to upload to
 #   $3[in]: Username to use
 #   $4[in]: Password to use
+#   $5[in]: If "force", the file will be uploaded even if it already exists
 # Returns:
 #   0: If the file was uploaded
 #   1: If an error occurred
@@ -107,6 +108,7 @@ nu_file_upload() {
   local __uri="${2}"
   local __user="${3}"
   local __pwd="${4}"
+  local __force="${5}"
 
   if [[ -z ${__file} ]]; then
     logError "File not specified"
@@ -152,36 +154,40 @@ nu_file_upload() {
       return 1
     fi
 
-    # Test if the file is already on the remote host
-    local test_cmd
-    test_cmd=(test -e "/${_path}")
-    nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
-    _code=$?
-    case ${_code} in
-    0)
-      logError "File already present on remote\n${_res}"
-      return 0
-      ;;
-    201)
-      logInfo "File not present on remote\n${_res}"
-      ;;
-    255)
-      logError "Host not reachable\n${_res}"
-      return 1
-      ;;
-    5)
-      logError "Permission denied\n${_res}"
-      return 1
-      ;;
-    127)
-      logError "Command not found\n${_res}"
-      return 1
-      ;;
-    *)
-      logError "Unknown return code: ${_code}\n${_res}"
-      return 1
-      ;;
-    esac
+    if [[ "${__force}" != "force" ]]; then
+      # Test if the file is already on the remote host
+      local test_cmd
+      test_cmd=(test -e "/${_path}")
+      nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
+      _code=$?
+      case ${_code} in
+      0)
+        logError "File already present on remote\n${_res}"
+        return 0
+        ;;
+      201)
+        logInfo "File not present on remote\n${_res}"
+        ;;
+      255)
+        logError "Host not reachable\n${_res}"
+        return 1
+        ;;
+      5)
+        logError "Permission denied\n${_res}"
+        return 1
+        ;;
+      127)
+        logError "Command not found\n${_res}"
+        return 1
+        ;;
+      *)
+        logError "Unknown return code: ${_code}\n${_res}"
+        return 1
+        ;;
+      esac
+    else
+      logInfo "Forcing upload"
+    fi
 
     # If we reach here, we must upload the file
     if ! nu_scp_cmd _cmd "${__user}" "${__file}" "${_host}" "${_port}" "${_path}" "true"; then

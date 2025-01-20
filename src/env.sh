@@ -86,9 +86,14 @@ env_replace_in_place() {
     logError "Failed to extract variable names from ${__file}"
     return 1
   fi
+
   while IFS= read -r var_name; do
     var_names+=("${var_name}")
   done <<<"${sed_output}"
+
+  # Remove blank entries by ommiting quotes
+  # shellcheck disable=SC2206
+  var_names=(${var_names[@]})
 
   # Make sure we will be able to replace all variables
   for var_name in "${var_names[@]}"; do
