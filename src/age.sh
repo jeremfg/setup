@@ -79,12 +79,13 @@ age_install() {
 #
 # Parameters:
 #   $1[in]: key name
+#   $2[in]: key directory (optional)
 # Returns:
 #   0: If key is configured
 #   1: If we couldn't configure the key
 age_configure() {
   local key_name="${1}"
-  local key_dir="${HOME}/.sops"
+  local key_dir="${2:-${HOME}/.sops}"
   local key="${key_dir}/${key_name}.txt"
   if [[ ! -f "${key}" ]]; then
     logInfo "Key not found: ${key}"

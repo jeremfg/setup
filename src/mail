@@ -475,11 +475,11 @@ SSMTP_CONF=(
 )
 
 # Variables loaded externally
-SSMTP_HUB=""
-SSMTP_USER=""
-SSMTP_PASS=""
-SSMTP_USESTARTTLS=""
-SENDER=""
+if [[ -z "${SSMTP_HUB}" ]]; then SSMTP_HUB=""; fi
+if [[ -z "${SSMTP_USER}" ]]; then SSMTP_USER=""; fi
+if [[ -z "${SSMTP_PASS}" ]]; then SSMTP_PASS=""; fi
+if [[ -z "${SSMTP_USESTARTTLS}" ]]; then SSMTP_USESTARTTLS=""; fi
+if [[ -z "${SENDER}" ]]; then SENDER=""; fi
 
 # Constants
 MAIL_CFG_NAME="email.env"
