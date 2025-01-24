@@ -424,6 +424,11 @@ sg_os_identify() {
         sg_print "Identified ubuntu"
         break
         ;;
+      debian)
+        eval "${_os}='debian'"
+        sg_print "Identified debian"
+        break
+        ;;
       alpine)
         eval "${_os}='alpine'"
         sg_print "Identified alpine"
@@ -560,6 +565,11 @@ sg_pkg_update_centos() {
 }
 
 sg_pkg_update_ubuntu() {
+  sg_pkg_update_debian
+  return $?
+}
+
+sg_pkg_update_debian() {
   sg_print "Updating apt catalog"
   if sudo apt-get update; then
     return 0
@@ -603,6 +613,11 @@ sg_pkg_is_installed_centos() {
 }
 
 sg_pkg_is_installed_ubuntu() {
+  sg_pkg_is_installed_debian "$@"
+  return $?
+}
+
+sg_pkg_is_installed_debian() {
   local repo="$1"
   local cur_pkg="$2"
   local res=2
@@ -652,6 +667,11 @@ sg_pkg_install_centos() {
 }
 
 sg_pkg_install_ubuntu() {
+  sg_pkg_install_debian "$@"
+  return $?
+}
+
+sg_pkg_install_debian() {
   local repo="$1"
   shift
   local pkgs=("$@")
