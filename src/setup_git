@@ -48,20 +48,27 @@ setup_git() {
   fi
 
   # Do we need to checkout a git repository?
-  if [[ -z "${SG_REPO_URL}" ]]; then
-    sg_print "No repository to checkout. Done."
-    return 0
-  fi
+  if [[ -n "${SG_REPO_URL}" ]]; then
+    sg_print "Repository to checkout: ${SG_REPO_URL}"
 
-  if ! sg_pkg_install "git"; then
-    sg_print "Failed to install git"
-    return 1
-  fi
+    # Check if git is installed
+    if ! command -v git &>/dev/null; then
+      sg_print "Git not found"
+      if ! sg_pkg_install "git"; then
+        sg_print "Failed to install git"
+        return 1
+      fi
+    else
+      sg_print "Git found"
+    fi
 
-  local dir
-  if ! sg_clone_repository dir; then
-    sg_print "Failed to clone repository"
-    return 1
+    local dir
+    if ! sg_clone_repository dir; then
+      sg_print "Failed to clone repository"
+      return 1
+    fi
+  else
+    sg_print "No repository to checkout. Skipping..."
   fi
 
   # Cleanup after all operations performed by this script
