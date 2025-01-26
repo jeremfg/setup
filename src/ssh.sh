@@ -198,6 +198,12 @@ ssh_ask() {
     fi
   done
 
+  # Make sure the destination folder exists
+  if ! mkdir -p "$(dirname "${suggested_key}")"; then
+    logError "Failed to create directory for key"
+    return 1
+  fi
+
   # Build the list of options
   local options=()
   options+=("Abort and exit")
