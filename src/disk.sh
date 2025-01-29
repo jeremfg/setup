@@ -192,13 +192,22 @@ disk_list_drives() {
     return 1
   fi
 
-  if ! res=$(lsblk -dno NAME); then
+  if ! res=$(lsblk -dno NAME,TYPE); then
     logError "Failed to list drives"
+    return 1
+  elif ! res=$(echo "${res}" | awk -v type="disk" '$2 == type {print $1}'); then
+    logError "Failed to filter drives"
     return 1
   fi
 
   # Turn members into an array
   IFS=$'\n' read -r -d '' -a _drives <<<"$(echo -e "${res}")"
+
+  # Make sure we have at least one drive
+  if [[ ${#_drives[@]} -lt 1 ]]; then
+    logError "No drives found"
+    return 1
+  fi
 
   # Use indirect variable references to return the array
   eval "${__result_drives}=(\"\${_drives[@]}\")"
