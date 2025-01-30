@@ -6,6 +6,7 @@
 if [[ -z ${GUARD_DISK_SH} ]]; then
   GUARD_DISK_SH=1
 else
+  logWarn "Re-sourcing disk.sh"
   return 0
 fi
 
@@ -30,14 +31,14 @@ disk_root_partition() {
   local _boot_drive
   local _boot_drive_type
   local _boot_partition
-  if ! _boot_partition=$(findmnt -n -o SOURCE /); then
+  if ! sh_exec _boot_partition findmnt -n -o SOURCE /; then
     logError "Failed to find boot partition"
     return 1
   else
     logTrace "Boot partition: ${_boot_partition}"
   fi
 
-  if ! _boot_drive=$(lsblk -dno PKNAME "${_boot_partition}"); then
+  if ! sh_exec _boot_drive lsblk -dno PKNAME "${_boot_partition}"; then
     logError "Failed to find boot drive"
     return 1
   else
@@ -45,13 +46,13 @@ disk_root_partition() {
   fi
 
   # Check type
-  if ! boot_drive_type=$(lsblk -dno TYPE "/dev/${_boot_drive}"); then
+  if ! sh_exec _boot_drive_type lsblk -dno TYPE "/dev/${_boot_drive}"; then
     logError "Failed to find boot drive type"
     return 1
   else
-    logTrace "Boot drive type: ${boot_drive_type}"
+    logTrace "Boot drive type: ${_boot_drive_type}"
   fi
-  case ${boot_drive_type} in
+  case ${_boot_drive_type} in
   disk)
     _boot_drive=("${_boot_drive}")
     ;;
@@ -59,7 +60,7 @@ disk_root_partition() {
     # shellcheck disable=SC2128
     _boot_partition="${_boot_drive}"
     # We will need to retrieve which drives are part of this array
-    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Working Devices' | awk '{print $4}' || true); then
+    if ! sh_exec res mdadm --detail "/dev/${_boot_partition}" | grep 'Working Devices' | awk '{print $4}' || true; then
       logError "Failed to find boot drive"
       return 1
     else
@@ -70,7 +71,7 @@ disk_root_partition() {
       return 1
     fi
     # shellcheck disable=SC2128
-    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true); then
+    if ! sh_exec res mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true; then
       logError "Failed to find boot drive"
       return 1
     else
@@ -107,10 +108,10 @@ disk_list_loop() {
     return 1
   fi
 
-  if ! res=$(losetup -O NAME); then
+  if ! sh_exec res losetup -O NAME; then
     logError "Failed to list loop devices"
     return 1
-  elif ! res=$(echo "${res}" | tail -n +2 | sed 's|/dev/||' || true); then
+  elif ! sh_exec res echo "${res}" | tail -n +2 | sed 's|/dev/||' || true; then
     logError "Failed to format loop devices"
     return 1
   fi
@@ -155,7 +156,7 @@ disk_loop_details() {
   fi
 
   local __res1
-  if ! __res1=$(losetup --list --output NAME,BACK-FILE,OFFSET,SIZELIMIT | grep "${loop} " || true); then
+  if ! sh_exec __res1 losetup --list --output NAME,BACK-FILE,OFFSET,SIZELIMIT | grep "${loop} " || true; then
     logError "Failed to find loop device details: ${__res1}"
     return 1
   fi
@@ -192,10 +193,10 @@ disk_list_drives() {
     return 1
   fi
 
-  if ! res=$(lsblk -dno NAME,TYPE); then
+  if ! sh_exec res lsblk -dno NAME,TYPE; then
     logError "Failed to list drives"
     return 1
-  elif ! res=$(echo "${res}" | awk -v type="disk" '$2 == type {print $1}'); then
+  elif ! sh_exec res echo "${res}" | awk -v type="disk" '$2 == type {print $1}' || true; then
     logError "Failed to filter drives"
     return 1
   fi
@@ -239,14 +240,14 @@ disk_drive_size() {
     return 1
   fi
 
-  if ! __res1=$(blockdev --getsz "/dev/${drive}"); then
+  if ! sh_exec __res1 blockdev --getsz "/dev/${drive}"; then
     logError "Failed to find drive size in sectors"
     return 1
   else
     logTrace "Drive size in sectors: ${__res1}"
   fi
 
-  if ! __res2=$(blockdev --getss "/dev/${drive}"); then
+  if ! sh_exec __res2 blockdev --getss "/dev/${drive}"; then
     logError "Failed to find sector size"
     return 1
   else
@@ -257,7 +258,7 @@ disk_drive_size() {
   eval "${__result_sec_size}='${__res2}'"
 
   if [[ -n ${__result_phys_size} ]]; then
-    if ! __res3=$(blockdev --getpbsz "/dev/${drive}"); then
+    if ! sh_exec __res3 blockdev --getpbsz "/dev/${drive}"; then
       logError "Failed to find physical sector size"
       return 1
     else
@@ -302,19 +303,19 @@ disk_get_available() {
     local __psize
     local __lsize
     local __bsize
-    if ! __psize=$(blockdev --getpbsz "/dev/${drive}"); then
+    if ! sh_exec __psize blockdev --getpbsz "/dev/${drive}"; then
       logError "Failed to get physical block size"
       return 1
     else
       logTrace "Physical block size [${drive}]: ${__psize}"
     fi
-    if ! __bsize=$(blockdev --getbsz "/dev/${drive}"); then
+    if ! sh_exec __bsize blockdev --getbsz "/dev/${drive}"; then
       logError "Failed to get block size"
       return 1
     else
       logTrace "Block size [${drive}]: ${__bsize}"
     fi
-    if ! __lsize=$(blockdev --getss "/dev/${drive}"); then
+    if ! sh_exec __lsize blockdev --getss "/dev/${drive}"; then
       logError "Failed to get logical block size"
       return 1
     else
@@ -323,17 +324,17 @@ disk_get_available() {
   fi
 
   # Get Total number of sectors
-  if ! __res2=$(blockdev --getsz "/dev/${drive}"); then
+  if ! sh_exec __res2 blockdev --getsz "/dev/${drive}"; then
     logError "Failed to get last sector"
     return 1
   fi
 
   # Check if drive contains boot_partition
   # shellcheck disable=SC2312
-  if lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
+  if sh_exec dummy lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
     logTrace "Drive ${drive} contains boot partition"
     # Read last usable sector
-    if ! __res1=$(sgdisk -p "/dev/${drive}"); then
+    if ! sh_exec __res1 sgdisk -p "/dev/${drive}"; then
       logError "Failed to find last usable sector"
       return 1
     else
@@ -377,7 +378,7 @@ disk_get_info() {
   fi
 
   local __res1 __res2 __res3
-  if ! __res1=$(udevadm info -q path "/dev/${__drive}"); then
+  if ! sh_exec __res1 udevadm info -q path "/dev/${__drive}"; then
     logError "Failed to find device path"
     return 1
   elif [[ -z ${__res1} ]]; then
@@ -387,13 +388,13 @@ disk_get_info() {
     logTrace "Path for ${__drive}: ${__res1}"
   fi
 
-  if ! __res2=$(udevadm info -q property -n "/dev/${__drive}"); then
+  if ! sh_exec __res2 udevadm info -q property -n "/dev/${__drive}"; then
     logError "Failed to read information about ${__drive}"
     return 1
-  elif ! __res3=$(echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true); then
+  elif ! sh_exec __res3 echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true; then
     logError "WWN parsing failed for ${__drive}"
     return 1
-  elif ! __res2=$(echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true); then
+  elif ! sh_exec __res2 echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true; then
     logError "Serial number parsing failed for ${__drive}"
     return 1
   elif [[ -z ${__res2} ]]; then
@@ -435,7 +436,7 @@ disk_create_loop() {
     return 1
   fi
 
-  if ! __res1=$(losetup --find --show --offset $((start_sector * 512)) --sizelimit $((nb_sectors * 512)) "/dev/${drive}"); then
+  if ! sh_exec __res1 losetup --find --show --offset $((start_sector * 512)) --sizelimit $((nb_sectors * 512)) "/dev/${drive}"; then
     logError "Failed to create loop device"
     return 1
   else
@@ -467,15 +468,15 @@ disk_create_raid1() {
   fi
 
   # If a raid array already exists, we need to stop it first
-  if mdadm --detail "/dev/${drive}" &>/dev/null; then
-    if ! mdadm --stop "/dev/${drive}"; then
+  if sh_exec "" mdadm --detail "/dev/${drive}" &>/dev/null; then
+    if ! sh_exec "" mdadm --stop "/dev/${drive}"; then
       logError "Failed to stop raid1"
       return 1
     fi
   fi
 
   # shellcheck disable=SC2312
-  if ! yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
+  if ! sh_exec "" yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
     logError "Failed to create raid1"
     return 1
   fi
@@ -495,11 +496,11 @@ disk_assemble_radi1() {
   fi
 
   # First, check if the raid array is already assembled
-  if __res1=$(mdadm --detail "/dev/${drive}"); then
+  if sh_exec __res1 mdadm --detail "/dev/${drive}"; then
     logInfo "/dev/${drive} already exists"
 
     # Confirm array state
-    __res2=$(echo "${__res1}" | grep 'State :' | awk '{print $3}' || true)
+    sh_exec __res2 echo "${__res1}" | grep 'State :' | awk '{print $3}' || true
     # Swallow a possible trailing comma. Exemple: "clean, resyncing"
     __res2=${__res2%,}
     case ${__res2} in
@@ -508,17 +509,17 @@ disk_assemble_radi1() {
       ;;
     inactive)
       logInfo "Array is inactive"
-      __res2=$(echo "${__res1}" | grep 'Total Devices :' | awk '{print $4}' || true)
+      sh_exec __res2 echo "${__res1}" | grep 'Total Devices :' | awk '{print $4}' || true
       if [[ ${__res2} -eq 1 ]]; then
         logInfo "Array has only 1 member device. Known situation. Stopping the array..."
         # This occurs when the OS automounts on startup.
         # while only one drive is available. A typical scneario in our use case, because the
         # loop device for DRIVE2 is not created until later. We just need to stop this array
         # and reassemble it ourselves.
-        if ! mdadm --stop "/dev/${drive}"; then
+        if ! sh_exec "" mdadm --stop "/dev/${drive}"; then
           logError "Failed to stop raid1"
           return 1
-        elif ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
+        elif ! sh_exec "" mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
           logError "Failed to assemble raid1"
           return 1
         else
@@ -537,7 +538,7 @@ disk_assemble_radi1() {
     esac
 
     # Confirm RAID level
-    __res2=$(echo "${__res1}" | grep 'Raid Level :' | awk '{print $4}' || true)
+    sh_exec __res2 echo "${__res1}" | grep 'Raid Level :' | awk '{print $4}' || true
     if [[ "${__res2}" != "raid1" ]]; then
       logWarn "Array is not raid1, but \"${__res2}\""
       return 1
@@ -546,7 +547,7 @@ disk_assemble_radi1() {
     fi
 
     # Confirm RAID devices
-    __res2=$(echo "${__res1}" | grep 'Working Devices :' | awk '{print $4}' || true)
+    sh_exec __res2 echo "${__res1}" | grep 'Working Devices :' | awk '{print $4}' || true
     if [[ ${__res2} -ne 2 ]]; then
       logWarn "Array does not have 2 working devices"
       return 1
@@ -556,7 +557,7 @@ disk_assemble_radi1() {
 
     # Confirm RAID members
     local member member1 member2
-    __res2=$(echo "${__res1}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${drive}" | sort | uniq || true)
+    sh_exec __res2 echo "${__res1}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${drive}" | sort | uniq || true
     IFS=$'\n' read -r -d '' -a __res2 <<<"$(echo -e "${__res2}")"
     for member in "${__res2[@]}"; do
       if [[ "${member}" == "/dev/${drive1}" ]]; then
@@ -578,7 +579,7 @@ disk_assemble_radi1() {
       return 0
     fi
   else
-    if ! mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
+    if ! sh_exec "" mdadm --assemble "/dev/${drive}" "/dev/${drive1}" "/dev/${drive2}"; then
       logError "Failed to assemble raid1"
       return 1
     else
@@ -605,7 +606,7 @@ disk_format() {
     return 1
   fi
 
-  if ! mkfs."${fs}" "/dev/${partition}"; then
+  if ! sh_exec "" mkfs."${fs}" "/dev/${partition}"; then
     logError "Failed to format partition"
     return 1
   fi
@@ -622,7 +623,7 @@ disk_format() {
 #   1: If the loop device could not be removed
 disk_remove_loop() {
   local loop="${1}"
-  local __res1
+  local __res
 
   if [[ -z ${loop} ]]; then
     logError "Variables not set: loop=${loop}"
@@ -630,7 +631,7 @@ disk_remove_loop() {
   fi
 
   # Check if loop device exists
-  if __res=$(losetup --list --output NAME); then
+  if sh_exec __res losetup --list --output NAME; then
     if ! echo "${__res}" | grep -q "${loop}"; then
       logInfo "Loop device ${loop} does not exist"
       return 0
@@ -664,7 +665,7 @@ disk_remove_raid() {
     return 1
   fi
 
-  if mdadm --detail "/dev/${raid}" &>/dev/null; then
+  if sh_exec "" mdadm --detail "/dev/${raid}" &>/dev/null; then
     if ! mdadm --stop "/dev/${raid}"; then
       logError "Failed to remove raid array"
       return 1
@@ -711,6 +712,8 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${DK_ROOT}/src/shell.sh"; then
+  logFatal "Failed to import shell.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
