@@ -60,7 +60,7 @@ disk_root_partition() {
     # shellcheck disable=SC2128
     _boot_partition="${_boot_drive}"
     # We will need to retrieve which drives are part of this array
-    if ! sh_exec res mdadm --detail "/dev/${_boot_partition}" | grep 'Working Devices' | awk '{print $4}' || true; then
+    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep 'Working Devices' | awk '{print $4}' || true); then
       logError "Failed to find boot drive"
       return 1
     else
@@ -71,7 +71,7 @@ disk_root_partition() {
       return 1
     fi
     # shellcheck disable=SC2128
-    if ! sh_exec res mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true; then
+    if ! res=$(mdadm --detail "/dev/${_boot_partition}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${_boot_drive}" | sort | uniq || true); then
       logError "Failed to find boot drive"
       return 1
     else
@@ -111,7 +111,7 @@ disk_list_loop() {
   if ! sh_exec res losetup -O NAME; then
     logError "Failed to list loop devices"
     return 1
-  elif ! sh_exec res echo "${res}" | tail -n +2 | sed 's|/dev/||' || true; then
+  elif ! res=$(echo "${res}" | tail -n +2 | sed 's|/dev/||' || true); then
     logError "Failed to format loop devices"
     return 1
   fi
@@ -156,7 +156,7 @@ disk_loop_details() {
   fi
 
   local __res1
-  if ! sh_exec __res1 losetup --list --output NAME,BACK-FILE,OFFSET,SIZELIMIT | grep "${loop} " || true; then
+  if ! __res1=$(losetup --list --output NAME,BACK-FILE,OFFSET,SIZELIMIT | grep "${loop} " || true); then
     logError "Failed to find loop device details: ${__res1}"
     return 1
   fi
@@ -196,7 +196,7 @@ disk_list_drives() {
   if ! sh_exec res lsblk -dno NAME,TYPE; then
     logError "Failed to list drives"
     return 1
-  elif ! sh_exec res echo "${res}" | awk -v type="disk" '$2 == type {print $1}' || true; then
+  elif ! res=$(echo "${res}" | awk -v type="disk" '$2 == type {print $1}' || true); then
     logError "Failed to filter drives"
     return 1
   fi
@@ -331,7 +331,7 @@ disk_get_available() {
 
   # Check if drive contains boot_partition
   # shellcheck disable=SC2312
-  if sh_exec dummy lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
+  if lsblk -no NAME "/dev/${drive}" | grep -q "${boot_partition}"; then
     logTrace "Drive ${drive} contains boot partition"
     # Read last usable sector
     if ! sh_exec __res1 sgdisk -p "/dev/${drive}"; then
@@ -391,10 +391,10 @@ disk_get_info() {
   if ! sh_exec __res2 udevadm info -q property -n "/dev/${__drive}"; then
     logError "Failed to read information about ${__drive}"
     return 1
-  elif ! sh_exec __res3 echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true; then
+  elif ! __res3=$(echo "${__res2}" | grep 'ID_WWN=' | awk -F= '{print $2}' || true); then
     logError "WWN parsing failed for ${__drive}"
     return 1
-  elif ! sh_exec __res2 echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true; then
+  elif ! __res2=$(echo "${__res2}" | grep 'ID_SERIAL_SHORT=' | awk -F= '{print $2}' || true); then
     logError "Serial number parsing failed for ${__drive}"
     return 1
   elif [[ -z ${__res2} ]]; then
@@ -476,7 +476,7 @@ disk_create_raid1() {
   fi
 
   # shellcheck disable=SC2312
-  if ! sh_exec "" yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
+  if ! yes | mdadm --create "/dev/${drive}" --force --level=1 --raid-devices=2 "/dev/${drive1}" "/dev/${drive2}"; then
     logError "Failed to create raid1"
     return 1
   fi
@@ -500,7 +500,7 @@ disk_assemble_radi1() {
     logInfo "/dev/${drive} already exists"
 
     # Confirm array state
-    sh_exec __res2 echo "${__res1}" | grep 'State :' | awk '{print $3}' || true
+    __res2=$(echo "${__res1}" | grep 'State :' | awk '{print $3}' || true)
     # Swallow a possible trailing comma. Exemple: "clean, resyncing"
     __res2=${__res2%,}
     case ${__res2} in
@@ -509,7 +509,7 @@ disk_assemble_radi1() {
       ;;
     inactive)
       logInfo "Array is inactive"
-      sh_exec __res2 echo "${__res1}" | grep 'Total Devices :' | awk '{print $4}' || true
+      __res2=$(echo "${__res1}" | grep 'Total Devices :' | awk '{print $4}' || true)
       if [[ ${__res2} -eq 1 ]]; then
         logInfo "Array has only 1 member device. Known situation. Stopping the array..."
         # This occurs when the OS automounts on startup.
@@ -538,7 +538,7 @@ disk_assemble_radi1() {
     esac
 
     # Confirm RAID level
-    sh_exec __res2 echo "${__res1}" | grep 'Raid Level :' | awk '{print $4}' || true
+    __res2=$(echo "${__res1}" | grep 'Raid Level :' | awk '{print $4}' || true)
     if [[ "${__res2}" != "raid1" ]]; then
       logWarn "Array is not raid1, but \"${__res2}\""
       return 1
@@ -547,7 +547,7 @@ disk_assemble_radi1() {
     fi
 
     # Confirm RAID devices
-    sh_exec __res2 echo "${__res1}" | grep 'Working Devices :' | awk '{print $4}' || true
+    __res2=$(echo "${__res1}" | grep 'Working Devices :' | awk '{print $4}' || true)
     if [[ ${__res2} -ne 2 ]]; then
       logWarn "Array does not have 2 working devices"
       return 1
@@ -557,7 +557,7 @@ disk_assemble_radi1() {
 
     # Confirm RAID members
     local member member1 member2
-    sh_exec __res2 echo "${__res1}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${drive}" | sort | uniq || true
+    __res2=$(echo "${__res1}" | grep -Eo '/dev/[a-zA-Z0-9]+' | grep -v "/dev/${drive}" | sort | uniq || true)
     IFS=$'\n' read -r -d '' -a __res2 <<<"$(echo -e "${__res2}")"
     for member in "${__res2[@]}"; do
       if [[ "${member}" == "/dev/${drive1}" ]]; then
