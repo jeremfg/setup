@@ -32,7 +32,7 @@ disk_by_sn() {
   for __dev in /sys/block/*; do
     __name=$(basename "${__dev}")
 
-    if ! sh_exec __serial device_serial udevadm info --query=all --name="/dev/${__name}"; then
+    if ! sh_exec __serial udevadm info --query=all --name="/dev/${__name}"; then
       logError "Failed to read serial drive info from: ${__name}"
       return 1
     elif ! __serial=$(echo "${__serial}" | grep 'ID_SERIAL=' | cut -d'=' -f2 || true); then
@@ -77,7 +77,7 @@ disk_sn_get() {
   fi
 
   local __serial
-  if ! sh_exec __serial device_serial udevadm info --query=all --name="/dev/${__drive}"; then
+  if ! sh_exec __serial udevadm info --query=all --name="/dev/${__drive}"; then
     logError "Failed to read serial drive info from: ${__drive}"
     return 1
   elif ! __serial=$(echo "${__serial}" | grep 'ID_SERIAL=' | cut -d'=' -f2 || true); then
