@@ -10,6 +10,89 @@ else
   return 0
 fi
 
+# Retrieve a disk by using it's serial number as search criteria
+#
+# Parameters:
+#   $1[out]: Drive found
+#   $1[in]: Serial Number
+# Returns:
+#   0: Found
+#   1: Error
+#   2: Not found
+disk_by_sn() {
+  local __result_drive="${1}"
+  local __sn="${2}"
+
+  if [[ -z ${__result_drive} ]] || [[ -z ${__sn} ]]; then
+    logError "Parameters not set"
+    return 1
+  fi
+
+  local __devpath __dev __name __serial
+  for __dev in /sys/block/*; do
+    __name=$(basename "${__dev}")
+
+    if ! sh_exec __serial device_serial udevadm info --query=all --name="/dev/${__name}"; then
+      logError "Failed to read serial drive info from: ${__name}"
+      return 1
+    elif ! __serial=$(echo "${__serial}" | grep 'ID_SERIAL=' | cut -d'=' -f2 || true); then
+      logError "Failed to parse for a serial number"
+      return 1
+    elif [[ -z "${__serial}" ]]; then
+      logWarn "No serial number found for ${__name}"
+      continue
+    elif [[ "${__serial}" == "${__sn}" ]]; then
+      logInfo "Found drive ${__name} with serial number: ${__serial}"
+      if [[ -e "/dev/${__name}" ]]; then
+        logTrace "Drive ${__name} exists"
+        eval "${__result_drive}='${__name}'"
+        return 0
+      else
+        logWarn "Drive ${__name} does not exist"
+        continue
+      fi
+    else
+      logTrace "Skipping ${__name} with serial number: ${__serial}"
+    fi
+  done
+
+  return 2
+}
+
+# Get a drive's serial number
+#
+# Parameters:
+#   $1[out]: Serial Number
+#   $2[in]: Drive
+# Returns:
+#   0: Success
+#   1: Error
+disk_sn_get() {
+  local __result_sn="${1}"
+  local __drive="${2}"
+
+  if [[ -z ${__result_sn} ]] || [[ -z ${__drive} ]]; then
+    logError "Parameters not set"
+    return 1
+  fi
+
+  local __serial
+  if ! sh_exec __serial device_serial udevadm info --query=all --name="/dev/${__drive}"; then
+    logError "Failed to read serial drive info from: ${__drive}"
+    return 1
+  elif ! __serial=$(echo "${__serial}" | grep 'ID_SERIAL=' | cut -d'=' -f2 || true); then
+    logError "Failed to parse for a serial number"
+    return 1
+  elif [[ -z "${__serial}" ]]; then
+    logError "No serial number found for ${__drive}"
+    return 1
+  else
+    logInfo "Serial number is: ${__serial}"
+    eval "${__result_sn}='${__serial}'"
+    return 0
+  fi
+}
+
 # Retrieves the root drive and partition
 #
 # Parameters:
@@ -484,6 +567,15 @@ disk_create_raid1() {
   return 0
 }
 
+# Re-assemble an existing RAID1 drive
+#
+# Parameters:
+#   $1[in]: Drive to be assembled
+#   $2[in]: First drive part pf the array
+#   $3[in]: Second drive part of the array
+# Returns:
+#   0: Success
+#   1: Failure
 disk_assemble_radi1() {
   local drive="${1}"
   local drive1="${2}"
