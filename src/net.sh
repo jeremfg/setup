@@ -92,6 +92,117 @@ nu_wait_ping() {
   return 0
 }
 
+# Download a file from a URI
+#
+# Parameters:
+#   $1[in]: File to download
+#   $2[in]: URI to download from
+#   $3[in]: Username to use
+#   $4[in]: Password to use
+#   $5[in]: If "force", the file will be downloaded even if it already exists
+# Returns:
+#   0: If the file was downloaded
+#   1: If an error occurred
+nu_file_download() {
+  local __file="${1}"
+  local __uri="${2}"
+  local __user="${3}"
+  local __pwd="${4}"
+  local __force="${5}"
+
+  if [[ -z ${__file} ]]; then
+    logError "File not specified"
+    return 1
+  elif [[ -z ${__uri} ]]; then
+    logError "URI not specified"
+    return 1
+  elif [[ -f "${__file}" ]]; then
+    if [[ "${__force}" != "force" ]]; then
+      logWarn "File already present locally"
+      return 0
+    else
+      logInfo "Forcing download"
+    fi
+  fi
+
+  local _scheme _usr _pwd _host _port _path _query _anchor _cmd _res _file _code
+  if [[ ${__uri} =~ ${NU_URI_REGEX} ]]; then
+    _scheme="${BASH_REMATCH[1]}"
+    _usr="${BASH_REMATCH[3]}"
+    _pwd="${BASH_REMATCH[5]}"
+    _host="${BASH_REMATCH[6]}"
+    _port="${BASH_REMATCH[9]}"
+    _path="${BASH_REMATCH[11]}"
+  else
+    logError "Invalid URI: \"${__uri}\". Using regex:${IFS}${NU_URI_REGEX}"
+    return 1
+  fi
+
+  _file=$(basename "${__file}")
+
+  # URI credentials take precedence
+  if [[ -n ${_usr} ]]; then
+    logTrace "URI overrides the user"
+    __user="${_usr}"
+  fi
+  if [[ -n ${_pwd} ]]; then
+    logTrace "URI overrides the password"
+    __pwd="${_pwd}"
+  fi
+
+  case "${_scheme}" in
+  scp)
+    # We're building the command first, so all the validations are performed
+    if ! nu_scp_cmd _cmd "${__user}" "${__file}" "${_host}" "${_port}" "${_path}" "false"; then
+      logError "Failed to generate SCP command"
+      return 1
+    fi
+
+    # Make sure the file exists on the remote host
+    local test_cmd
+    test_cmd=(test -e "/${_path}")
+    nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
+    _code=$?
+    case ${_code} in
+    0)
+      logTrace "File present on remote. Proceeding..."
+      ;;
+    201)
+      logError "File not present on remote${IFS}${_res}"
+      return 1
+      ;;
+    *)
+      logError "Error ${_code} occured while checking for file${IFS}${_res}"
+      return 1
+      ;;
+    esac
+
+    # If we reach here, we must download the file
+    if ! nu_scp_cmd _cmd "${__user}" "${__file}" "${_host}" "${_port}" "${_path}" "false"; then
+      logError "Failed to generate SCP command"
+      return 1
+    fi
+
+    nu_sshpass_exec _res "${__pwd}" "${_cmd[@]}"
+    _code=$?
+    case ${_code} in
+    0)
+      logInfo "File downloaded${IFS}${_res}"
+      return 0
+      ;;
+    *)
+      logError "Error ${_code} occured while downloading file${IFS}${_res}"
+      return 1
+      ;;
+    esac
+    ;;
+  *)
+    logError "Unsupported protocol: ${_scheme}"
+    return 1
+    ;;
+  esac  
+}
+
 # Upload a file to a URI
 #
 # Parameters:
@@ -121,7 +232,7 @@ nu_file_upload() {
     return 1
   fi
 
-  local uri_regex _scheme _usr _pwd _host _port _path _query _anchor _cmd _res _file _code
+  local _scheme _usr _pwd _host _port _path _query _anchor _cmd _res _file _code
   if [[ ${__uri} =~ ${NU_URI_REGEX} ]]; then
     _scheme="${BASH_REMATCH[1]}"
     _usr="${BASH_REMATCH[3]}"
@@ -130,7 +241,7 @@ nu_file_upload() {
     _port="${BASH_REMATCH[9]}"
     _path="${BASH_REMATCH[11]}"
   else
-    logError "Invalid URI: \"${__uri}\". Using regex:\n${uri_regex}"
+    logError "Invalid URI: \"${__uri}\". Using regex:${IFS}${NU_URI_REGEX}"
     return 1
   fi
 
@@ -162,26 +273,26 @@ nu_file_upload() {
       _code=$?
       case ${_code} in
       0)
-        logError "File already present on remote\n${_res}"
+        logError "File already present on remote${IFS}${_res}"
         return 0
         ;;
       201)
-        logInfo "File not present on remote\n${_res}"
+        logInfo "File not present on remote${IFS}${_res}"
         ;;
       255)
-        logError "Host not reachable\n${_res}"
+        logError "Host not reachable${IFS}${_res}"
         return 1
         ;;
       5)
-        logError "Permission denied\n${_res}"
+        logError "Permission denied${IFS}${_res}"
         return 1
         ;;
       127)
-        logError "Command not found\n${_res}"
+        logError "Command not found${IFS}${_res}"
         return 1
         ;;
       *)
-        logError "Unknown return code: ${_code}\n${_res}"
+        logError "Unknown return code: ${_code}${IFS}${_res}"
         return 1
         ;;
       esac
@@ -198,20 +309,20 @@ nu_file_upload() {
     _code=$?
     case ${_code} in
     0)
-      logInfo "File uploaded\n${_res}"
+      logInfo "File uploaded${IFS}${_res}"
       return 0
       ;;
     5)
-      logError "Permission denied\n${_res}"
+      logError "Permission denied${IFS}${_res}"
       return 1
       ;;
     255)
 
-      logError "Host not reachable\n${_res}"
+      logError "Host not reachable${IFS}${_res}"
       return 1
       ;;
     *)
-      logError "Unknown return code: ${_code}\n${_res}"
+      logError "Unknown return code: ${_code}${IFS}${_res}"
       return 1
       ;;
     esac
@@ -321,8 +432,10 @@ nu_scp_cmd() {
     logError "Invalid upload flag: ${__scp_upload}"
     return 1
   elif [[ ! -f "${__scp_local}" ]] && [[ ! -d "${__scp_local}" ]]; then
-    logError "Local file not found: ${__scp_local}"
-    return 1
+    if [[ "${__scp_upload}" == "true" ]]; then
+      logError "Local file not found: ${__scp_local}"
+      return 1
+    fi
   fi
 
   local _scp_loc _scp_rem _scp_cmd _scp_res _scp_code
@@ -458,7 +571,7 @@ Output:
 ${_pass_res}
 EOF
   else
-    logTrace "Command executed successfully\n${_pass_res}"
+    logTrace "Command executed successfully${IFS}${_pass_res}"
   fi
 
   if [[ -n ${__sshpass_output} ]]; then
