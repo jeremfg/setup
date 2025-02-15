@@ -6,6 +6,7 @@
 if [[ -z ${GUARD_NETUTILS_SH} ]]; then
   GUARD_NETUTILS_SH=1
 else
+  logWarn "Re-sourcing net.sh"
   return 0
 fi
 
@@ -227,7 +228,7 @@ nu_file_download() {
     # Make sure the file exists on the remote host
     local test_cmd
     test_cmd=(test -e "/${_path}")
-    nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
+    ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
     _code=$?
     case ${_code} in
     0)
@@ -249,7 +250,7 @@ nu_file_download() {
       return 1
     fi
 
-    nu_sshpass_exec _res "${__pwd}" "${_cmd[@]}"
+    sshpass_exec _res "${__pwd}" "${_cmd[@]}"
     _code=$?
     case ${_code} in
     0)
@@ -335,7 +336,7 @@ nu_file_upload() {
       # Test if the file is already on the remote host
       local test_cmd
       test_cmd=(test -e "/${_path}")
-      nu_ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
+      ssh_exec _res "${__user}" "${__pwd}" "${_host}" "${_port}" "${test_cmd[@]}"
       _code=$?
       case ${_code} in
       0)
@@ -371,7 +372,7 @@ nu_file_upload() {
       logError "Failed to generate SCP command"
       return 1
     fi
-    nu_sshpass_exec _res "${__pwd}" "${_cmd[@]}"
+    sshpass_exec _res "${__pwd}" "${_cmd[@]}"
     _code=$?
     case ${_code} in
     0)
@@ -526,126 +527,6 @@ nu_scp_cmd() {
   fi
 
   eval "${__scp_uri}=(\"\${_scp_cmd[@]}\")"
-}
-
-# Execute a command on a remote host via SSH
-#
-# Parameters:
-#   $1[out]: The command output
-#   $2[in]:  The username
-#   $3[in]:  The password
-#   $4[in]:  The host
-#   $5[in]:  The port
-#   $@[in]:  The command to execute
-# Returns:
-#   1: If an error occured
-#   $?: The return code of the command
-nu_ssh_exec() {
-  local __ssh_output="${1}"
-  local __ssh_user="${2}"
-  local __ssh_pwd="${3}"
-  local __ssh_host="${4}"
-  local __ssh_port="${5}"
-  shift 5
-
-  # Validate inputs
-  if ! command -v ssh &>/dev/null; then
-    logError "ssh tool not found"
-    return 1
-  elif [[ -z ${__ssh_host} ]]; then
-    logError "Host not specified"
-    return 1
-  elif [[ ! "${__ssh_host}" =~ ^${NU_REGEX_HOST}$ ]]; then
-    logError "Invalid hostname: ${__ssh_host}"
-    return 1
-  elif [[ -n ${__ssh_port} ]] && [[ ! "${__ssh_port}" =~ ^[0-9]+$ ]]; then
-    logError "Invalid port: ${__ssh_port}"
-    return 1
-  fi
-
-  # Build the SSH command
-  local _ssh_uri _ssh_cmd _ssh_res _ssh_code
-  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no")
-  if [[ -n ${__ssh_port} ]]; then
-    _ssh_cmd+=(-P "${__ssh_port}")
-  fi
-  _ssh_uri=""
-  if [[ -n ${__ssh_user} ]]; then
-    _ssh_uri+="${__ssh_user}@"
-  fi
-  _ssh_uri+="${__ssh_host}"
-  _ssh_cmd+=("${_ssh_uri}")
-  _ssh_cmd+=("$@")
-
-  nu_sshpass_exec _ssh_res "${__ssh_pwd}" "${_ssh_cmd[@]}"
-  _ssh_code=$?
-
-  # To distinguish between a failed command and a failed connection
-  if [[ ${_ssh_code} -eq 201 ]]; then
-    logWarn "It will be difficult to distinguish between a true error 201 and 1"
-  elif [[ ${_ssh_code} -eq 1 ]]; then
-    _ssh_code=201
-  fi
-
-  if [[ -n ${__ssh_output} ]]; then
-    eval "${__ssh_output}='${_ssh_res}'"
-  fi
-
-  # shellcheck disable=SC2248
-  return ${_ssh_code}
-}
-
-# Execute a command that may require a SSH password
-#
-# Parameters:
-#   $1[out]: The result of executing the command
-#   $2[in]:  The password to use
-#   $@[in]:  The command to execute
-# Returns:
-#   1: If an error occured
-#   $?: The return code of the command
-nu_sshpass_exec() {
-  local __sshpass_output="${1}"
-  local __sshpass_pwd="${2}"
-  shift 2
-
-  if ! command -v sshpass &>/dev/null; then
-    logError "sshpass tool not found"
-    return 1
-  fi
-
-  local _pass_cmd _pass_cmd_p _pass_res _pass_code
-  _pass_cmd=()
-  _pass_cmd_p=()
-  if [[ -n ${__sshpass_pwd} ]]; then
-    _pass_cmd+=(sshpass -p "${__sshpass_pwd}")
-    _pass_cmd_p+=(sshpass -p "********")
-  fi
-  _pass_cmd+=("$@")
-  _pass_cmd_p+=("$@")
-
-  logTrace "Executing command: ${_pass_cmd_p[*]}"
-  _pass_res=$("${_pass_cmd[@]}" 2>&1)
-  _pass_code=$?
-
-  if [[ ${_pass_code} -ne 0 ]]; then
-    logError <<EOF
-Failed to Execute command: ${_pass_cmd_p[*]}
-
-Return Code: ${_pass_code}
-Output:
-${_pass_res}
-EOF
-  else
-    logTrace "Command executed successfully${IFS}${_pass_res}"
-  fi
-
-  if [[ -n ${__sshpass_output} ]]; then
-    eval "${__sshpass_output}='${_pass_res}'"
-  fi
-
-  # shellcheck disable=SC2248
-  return ${_pass_code}
 }
 
 # Variables loaded externally

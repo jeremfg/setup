@@ -6,6 +6,7 @@
 if [[ -z ${GUARD_SSH_SH} ]]; then
   GUARD_SSH_SH=1
 else
+  logWarn "Re-sourcing ssh.sh"
   return 0
 fi
 
@@ -337,6 +338,248 @@ EOF
 ssh_paste_key() {
   sg_ssh_paste_key "${1}"
   return $?
+}
+
+# Create an identity remotely
+#
+# Parameters:
+#   $1[out]: The public key created
+#   $2[in]:  The username
+#   $3[in]:  The password
+#   $4[in]:  The host
+#   $5[in]:  The port
+# Returns:
+#   0: If the identity was created
+#   1: If an error occured
+ssh_identity_create() {
+  local __ssh_pub_key="${1}"
+  local __ssh_user="${2}"
+  local __ssh_pwd="${3}"
+  local __ssh_host="${4}"
+  local __ssh_port="${5}"
+
+  local _id_cmd _id_res _id_code
+  # Try to read the public key if it exists
+  # shellcheck disable=SC2088
+  _id_cmd=(test -e "~/.ssh/id_ed25519.pub")
+  ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+  _id_code=$?
+  if [[ ${_id_code} -eq 0 ]]; then
+    logInfo "Indentity already exists"
+    # shellcheck disable=SC2088
+    _id_cmd=(cat "~/.ssh/id_ed25519.pub")
+    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+    _id_code=$?
+    if [[ ${_id_code} -ne 0 ]]; then
+      logError "Failed to read public key"
+      return 1
+    fi
+    eval "${__ssh_pub_key}='${_id_res}'"
+    return 0
+  elif [[ ${_id_code} -eq 201 ]]; then
+    logInfo "Creating identity"
+    # shellcheck disable=SC2088
+    _id_cmd=(ssh-keygen -t ed25519 -f "~/.ssh/id_ed25519" -N "")
+    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+    _id_code=$?
+    if [[ ${_id_code} -ne 0 ]]; then
+      logError "Failed to create identity"
+      return 1
+    fi
+    # shellcheck disable=SC2088
+    _id_cmd=(cat "~/.ssh/id_ed25519.pub")
+    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+    _id_code=$?
+    if [[ ${_id_code} -ne 0 ]]; then
+      logError "Failed to read public key"
+      return 1
+    fi
+    eval "${__ssh_pub_key}='${_id_res}'"
+    return 0
+  else
+    logError "Failed to check for identity"
+    return 1
+  fi
+}
+
+# Remotely authorize an identity
+#
+# Parameters:
+#   $1[in]: The public key to authorize
+#   $2[in]: The username
+#   $3[in]: The password
+#   $4[in]: The host
+#   $5[in]: The port
+# Returns:
+#   0: If the identity was authorized
+#   1: If an error occured
+ssh_identity_authorize() {
+  local __ssh_pub_key="${1}"
+  local __ssh_user="${2}"
+  local __ssh_pwd="${3}"
+  local __ssh_host="${4}"
+  local __ssh_port="${5}"
+
+  local _auth_cmd _auth_res _auth_code
+  # First check if the key is already authorized
+  # shellcheck disable=SC2088
+  _auth_cmd=(grep -q "${__ssh_pub_key}" "~/.ssh/authorized_keys")
+  ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
+  _auth_code=$?
+  if [[ ${_auth_code} -eq 0 ]]; then
+    logInfo "Identity already authorized"
+    return 0
+  elif [[ ${_auth_code} -eq 201 ]]; then
+    logInfo "Identity not present. Adding it..."
+    # shellcheck disable=SC2088
+    _auth_cmd=(echo "${__ssh_pub_key}" ">>" "~/.ssh/authorized_keys")
+    ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
+    _auth_code=$?
+    if [[ ${_auth_code} -ne 0 ]]; then
+      logError "Failed to authorize identity"
+      return 1
+    fi
+  else
+    logError "Failed to check for identity (${_auth_code}): ${_auth_res}"
+    return 1
+  fi
+
+  return 0
+}
+
+# Execute a command on a remote host via SSH
+#
+# Parameters:
+#   $1[out]: The command output
+#   $2[in]:  The username
+#   $3[in]:  The password
+#   $4[in]:  The host
+#   $5[in]:  The port
+#   $@[in]:  The command to execute
+# Returns:
+#   1: If an error occured
+#   $?: The return code of the command
+ssh_exec() {
+  local __ssh_output="${1}"
+  local __ssh_user="${2}"
+  local __ssh_pwd="${3}"
+  local __ssh_host="${4}"
+  local __ssh_port="${5}"
+  shift 5
+
+  # Validate inputs
+  if ! command -v ssh &>/dev/null; then
+    logError "ssh tool not found"
+    return 1
+  elif [[ -z ${__ssh_host} ]]; then
+    logError "Host not specified"
+    return 1
+  elif [[ -n ${__ssh_port} ]] && [[ ! "${__ssh_port}" =~ ^[0-9]+$ ]]; then
+    logError "Invalid port: ${__ssh_port}"
+    return 1
+  fi
+
+  # Build the SSH command
+  local _ssh_uri _ssh_cmd _ssh_res _ssh_code
+  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no")
+  if [[ -n ${__ssh_port} ]]; then
+    _ssh_cmd+=(-P "${__ssh_port}")
+  fi
+  _ssh_uri=""
+  if [[ -n ${__ssh_user} ]]; then
+    _ssh_uri+="${__ssh_user}@"
+  fi
+  _ssh_uri+="${__ssh_host}"
+  _ssh_cmd+=("${_ssh_uri}")
+  _ssh_cmd+=("$@")
+
+  if [[ -n ${__ssh_pwd} ]]; then
+    sshpass_exec _ssh_res "${__ssh_pwd}" "${_ssh_cmd[@]}"
+    _ssh_code=$?
+  else
+    logTrace "Executing command: ${_ssh_cmd[*]}"
+    _ssh_res=$("${_ssh_cmd[@]}" 2>&1)
+    _ssh_code=$?
+
+    if [[ ${_ssh_code} -ne 0 ]]; then
+      logError <<EOF
+Failed to Execute command: ${_ssh_cmd[*]}
+
+Return Code: ${_ssh_code}
+Output:
+${_ssh_res}
+EOF
+    else
+      logTrace "Command executed successfully${IFS}${_ssh_res}"
+    fi
+  fi
+
+  # To distinguish between a failed command and a failed connection
+  if [[ ${_ssh_code} -eq 201 ]]; then
+    logWarn "It will be difficult to distinguish between a true error 201 and 1"
+  elif [[ ${_ssh_code} -eq 1 ]]; then
+    _ssh_code=201
+  fi
+
+  if [[ -n ${__ssh_output} ]]; then
+    eval "${__ssh_output}='${_ssh_res}'"
+  fi
+
+  # shellcheck disable=SC2248
+  return ${_ssh_code}
+}
+
+# Execute a command that may require a SSH password
+#
+# Parameters:
+#   $1[out]: The result of executing the command
+#   $2[in]:  The password to use
+#   $@[in]:  The command to execute
+# Returns:
+#   1: If an error occured
+#   $?: The return code of the command
+sshpass_exec() {
+  local __sshpass_output="${1}"
+  local __sshpass_pwd="${2}"
+  shift 2
+
+  if ! command -v sshpass &>/dev/null; then
+    logError "sshpass tool not found"
+    return 1
+  fi
+
+  local _pass_cmd _pass_cmd_p _pass_res _pass_code
+  _pass_cmd=()
+  _pass_cmd_p=()
+  if [[ -n ${__sshpass_pwd} ]]; then
+    _pass_cmd+=(sshpass -p "${__sshpass_pwd}")
+    _pass_cmd_p+=(sshpass -p "********")
+  fi
+  _pass_cmd+=("$@")
+  _pass_cmd_p+=("$@")
+
+  logTrace "Executing command: ${_pass_cmd_p[*]}"
+  _pass_res=$("${_pass_cmd[@]}" 2>&1)
+  _pass_code=$?
+
+  if [[ ${_pass_code} -ne 0 ]]; then
+    logError <<EOF
+Failed to Execute command: ${_pass_cmd_p[*]}
+
+Return Code: ${_pass_code}
+Output:
+${_pass_res}
+EOF
+  else
+    logTrace "Command executed successfully${IFS}${_pass_res}"
+  fi
+
+  if [[ -n ${__sshpass_output} ]]; then
+    eval "${__sshpass_output}='${_pass_res}'"
+  fi
+
+  # shellcheck disable=SC2248
+  return ${_pass_code}
 }
 
 # Constants
