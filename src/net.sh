@@ -13,7 +13,7 @@ fi
 #
 # Parameters:
 #   $1[in]: Domain to wait for
-#   $2[in]: DNS server to query
+#   $2[in]: DNS server to query. Optional, maybe unsupported.
 #   $3[in]: Timeout in seconds
 # Returns:
 #   0: If DNS is answering
@@ -28,6 +28,8 @@ nu_wait_dns() {
     cmd="nslookup"
   elif command -v dig &>/dev/null; then
     cmd="dig"
+  elif command -v getent &>/dev/null; then
+    cmd="getent"
   else
     logError "No DNS tool found"
     return 1
@@ -37,7 +39,18 @@ nu_wait_dns() {
   while true; do
     case "${cmd}" in
     nslookup)
-      if res=$(nslookup "${domain}" "${dns_server}"); then
+      cmd=(nslookup "${domain}")
+      if [[ -n ${dns_server} ]]; then
+        cmd+=("${dns_server}")
+      fi
+      if res=$("${cmd[@]}"); then
+        break
+      else
+        logTrace "No DNS answer: ${res}"
+      fi
+      ;;
+    getent)
+      if res=$(getent ahosts "${domain}"); then
         break
       else
         logTrace "No DNS answer: ${res}"
@@ -58,6 +71,59 @@ nu_wait_dns() {
   done
 
   logInfo "DNS is answering: ${res}"
+  return 0
+}
+
+# Wait until a web server is answering
+#
+# Parameters:
+#   $1[in]: URL to wait for
+#   $2[in]: HTTP Code to wait for
+#   $3[in]: Timeout in seconds
+# Returns:
+#   0: If web server is answering
+#   1: If web server is not answering
+nu_wait_web() {
+  local url="${1}"
+  local code="${2}"
+  local timeout="${3}"
+
+  if [[ -z ${url} ]]; then
+    logError "URL not specified"
+    return 1
+  elif [[ ! "${code}" =~ ^[0-9]+$ ]]; then
+    logError "code is not a valid number"
+    return 1
+  elif [[ ! "${timeout}" =~ ^[0-9]+$ ]]; then
+    logError "Timeout is not a valid number"
+    return 1
+  elif ! command -v curl &>/dev/null; then
+    logError "curl not found"
+    return 1
+  fi
+
+  local end_time res
+  end_time=$(($(date +%s) + timeout))
+  while true; do
+    if res=$(curl -s -o /dev/null -w "%{http_code}" "${url}"); then
+      if [[ "${res}" -eq "${code}" ]]; then
+        break
+      else
+        logTrace "Web server not ready: ${res}"
+      fi
+    else
+      logTrace "Web server not ready: ${res}"
+    fi
+
+    if [[ $(date +%s || true) -lt ${end_time} ]]; then
+      logError "Timeout reached while waiting for a web server at ${url}"
+      return 1
+    else
+      sleep 1
+    fi
+  done
+
+  logInfo "Web server is answering: ${url}"
   return 0
 }
 
@@ -200,7 +266,7 @@ nu_file_download() {
     logError "Unsupported protocol: ${_scheme}"
     return 1
     ;;
-  esac  
+  esac
 }
 
 # Upload a file to a URI
