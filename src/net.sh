@@ -594,6 +594,8 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${NU_ROOT}/src/ssh.sh"; then
+  logFatal "Failed to import ssh.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
