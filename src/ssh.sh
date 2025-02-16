@@ -483,7 +483,7 @@ ssh_exec() {
   local _ssh_uri _ssh_cmd _ssh_res _ssh_code
   _ssh_cmd=(ssh -o "StrictHostKeyChecking=no")
   if [[ -n ${__ssh_port} ]]; then
-    _ssh_cmd+=(-P "${__ssh_port}")
+    _ssh_cmd+=(-p "${__ssh_port}")
   fi
   _ssh_uri=""
   if [[ -n ${__ssh_user} ]]; then

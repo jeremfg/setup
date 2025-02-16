@@ -121,10 +121,10 @@ ipmi_power_status() {
   if ! ipmi_exec __read_result "power" "status"; then
     logError "Failed to get power status"
     return 1
-  elif [[ "${__result_status}" == *"Chassis Power is on"* ]]; then
+  elif [[ "${__read_result}" == *"Chassis Power is on"* ]]; then
     eval "${__result_status}='on'"
     return 0
-  elif [[ "${__result_status}" == *"Chassis Power is off"* ]]; then
+  elif [[ "${__read_result}" == *"Chassis Power is off"* ]]; then
     eval "${__result_status}='off'"
     return 0
   else
