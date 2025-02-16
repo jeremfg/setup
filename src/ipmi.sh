@@ -115,17 +115,17 @@ EOF
 #   0: If the power status was retrieved
 #   1: If an error occurred
 ipmi_power_status() {
-  local __result_status="${1}"
+  local __result_power_status="${1}"
 
   local __read_result
   if ! ipmi_exec __read_result "power" "status"; then
     logError "Failed to get power status"
     return 1
   elif [[ "${__read_result}" == *"Chassis Power is on"* ]]; then
-    eval "${__result_status}='on'"
+    eval "${__result_power_status}='on'"
     return 0
   elif [[ "${__read_result}" == *"Chassis Power is off"* ]]; then
-    eval "${__result_status}='off'"
+    eval "${__result_power_status}='off'"
     return 0
   else
     logError "Unknown power status"
