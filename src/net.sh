@@ -106,7 +106,7 @@ nu_wait_web() {
   local end_time res
   end_time=$(($(date +%s) + timeout))
   while true; do
-    if res=$(curl -s -o /dev/null -w "%{http_code}" "${url}"); then
+    if res=$(curl -k -s -o /dev/null -w "%{http_code}" "${url}"); then
       if [[ "${res}" -eq "${code}" ]]; then
         break
       else
