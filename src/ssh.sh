@@ -379,7 +379,7 @@ ssh_identity_create() {
   elif [[ ${_id_code} -eq 201 ]]; then
     logInfo "Creating identity"
     # shellcheck disable=SC2088
-    _id_cmd=(ssh-keygen -t ed25519 -f "~/.ssh/id_ed25519" -N "")
+    _id_cmd=(ssh-keygen -t ed25519 -f "~/.ssh/id_ed25519" -N "\"\"")
     ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
     _id_code=$?
     if [[ ${_id_code} -ne 0 ]]; then
@@ -522,11 +522,11 @@ EOF
   fi
 
   if [[ -n ${__ssh_output} ]]; then
-    eval "${__ssh_output}='${_ssh_res}'"
+    printf -v "${__ssh_output}" '%s' "${_ssh_res}"
   fi
 
   # shellcheck disable=SC2248
-  return ${_ssh_code}
+  return "${_ssh_code}"
 }
 
 # Execute a command that may require a SSH password
@@ -575,11 +575,11 @@ EOF
   fi
 
   if [[ -n ${__sshpass_output} ]]; then
-    eval "${__sshpass_output}='${_pass_res}'"
+    printf -v "${__sshpass_output}" '%s' "${_pass_res}"
   fi
 
   # shellcheck disable=SC2248
-  return ${_pass_code}
+  return "${_pass_code}"
 }
 
 # Constants
