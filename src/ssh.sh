@@ -423,7 +423,7 @@ ssh_identity_authorize() {
   local _auth_cmd _auth_res _auth_code
   # First check if the key is already authorized
   # shellcheck disable=SC2088
-  _auth_cmd=(grep -q "${__ssh_pub_key}" "~/.ssh/authorized_keys")
+  _auth_cmd=(grep -q "'${__ssh_pub_key}'" "~/.ssh/authorized_keys")
   ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
   _auth_code=$?
   if [[ ${_auth_code} -eq 0 ]]; then
