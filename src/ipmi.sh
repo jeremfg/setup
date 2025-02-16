@@ -162,7 +162,7 @@ ipmi_power_on() {
     elif [[ "${__result_status}" == "on" ]]; then
       logInfo "Machine powered on"
       return 0
-    elif [[ $(date +%s || true) -gt ${end_time} ]]; then
+    elif [[ $(date +%s || true) -ge ${end_time} ]]; then
       logError "Machine did not power on"
       return 1
     fi
@@ -208,7 +208,7 @@ ipmi_wait_off() {
     elif [[ "${__result_status}" == "off" ]]; then
       logInfo "Machine is off"
       return 0
-    elif [[ $(date +%s || true) -gt ${end_time} ]]; then
+    elif [[ $(date +%s || true) -ge ${end_time} ]]; then
       logError "Machine did not power off"
       return 1
     fi

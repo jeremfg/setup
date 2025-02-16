@@ -63,7 +63,7 @@ nu_wait_dns() {
       ;;
     esac
 
-    if [[ $(date +%s || true) -lt ${end_time} ]]; then
+    if [[ $(date +%s || true) -ge ${end_time} ]]; then
       logError "Timeout reached while waiting for a DNS answer about ${domain}"
       return 1
     else
@@ -116,7 +116,7 @@ nu_wait_web() {
       logTrace "Web server not ready: ${res}"
     fi
 
-    if [[ $(date +%s || true) -lt ${end_time} ]]; then
+    if [[ $(date +%s || true) -ge ${end_time} ]]; then
       logError "Timeout reached while waiting for a web server at ${url}"
       return 1
     else
@@ -147,7 +147,7 @@ nu_wait_ping() {
       break
     fi
 
-    if [[ $(date +%s || true) -lt ${end_time} ]]; then
+    if [[ $(date +%s || true) -ge ${end_time} ]]; then
       logError "Timeout reached while waiting for ${host}"
       return 1
     else
