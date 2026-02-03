@@ -91,6 +91,13 @@ EOF
     return 1
   fi
 
+  # Start the agent in the current session
+  # shellcheck disable=SC1090
+  if ! source "${config_filename}"; then
+    logError "Failed to start ssh-agent in current session"
+    return 1
+  fi
+
   return 0
 }
 

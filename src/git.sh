@@ -119,35 +119,35 @@ EOF
 
   # Apply configurations to all submodules
   # shellcheck disable=SC2016
-  if ! user="${user}" email="${email}" git submodule foreach '
+  if ! user="${user}" email="${email}" git submodule foreach 'bash -c '\''
     cur_user=$(git config user.name)
     cur_email=$(git config user.email)
 
-    if [[ "${cur_user}" != "${user}" ]] || [[ "${cur_email}" != "${email}" ]]; then
-      echo "Setting git user to: ${user} <${email}> in submodule ${name}"
+    if [[ "${cur_user}" != "'"${user}"'" ]] || [[ "${cur_email}" != "'"${email}"'" ]]; then
+      echo "Setting git user to: '"${user}"' <'"${email}"'> in submodule '"${name}"'"
     fi
-    if [[ "${cur_user}" != "${user}" ]]; then
-      if ! git config user.name "${user}"; then
-        echo "Failed to set git user in submodule ${name}"
+    if [[ "${cur_user}" != "'"${user}"'" ]]; then
+      if ! git config user.name "'"${user}"'"; then
+        echo "Failed to set git user in submodule '"${name}"'"
         exit 1
       fi
     fi
-    if [[ "${cur_email}" != "${email}" ]]; then
-      if ! git config user.email "${email}"; then
-        echo "Failed to set git email in submodule ${name}"
+    if [[ "${cur_email}" != "'"${email}"'" ]]; then
+      if ! git config user.email "'"${email}"'"; then
+        echo "Failed to set git email in submodule '"${name}"'"
         exit 1
       fi
     fi
 
     push_default=$(git config push.default)
     if [[ "${push_default}" != "simple" ]]; then
-      echo "Setting push.default to simple in submodule ${name}"
+      echo "Setting push.default to simple in submodule '"${name}"'"
       if ! git config push.default simple; then
-        echo "Failed to set push.default in submodule ${name}"
+        echo "Failed to set push.default in submodule '"${name}"'"
         exit 1
       fi
     fi
-  '; then
+  '\'''; then
     logError "Failed to apply git configuration to submodules"
     popd >/dev/null || return 1
     return 1

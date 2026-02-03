@@ -29,7 +29,7 @@ id_identify() {
   local product_name
   local manufacturer
 
-  table2=$(dmidecode -t 2)
+  table2=$(sudo dmidecode -t 2)
   if [[ -z "${table2}" ]]; then
     logError "Failed to get DMI table 2"
     return 1
@@ -159,6 +159,141 @@ id_identify() {
 
       eval "${_name}='QNAP TVS-x63'"
       logInfo "Recognized the motherboard used in a QNAP TVS-x63: ${product_name}"
+      res=0
+      ;;
+    *)
+      logError "Motherboard is not recognized: ${product_name}"
+      ;;
+    esac
+    ;;
+  "Framework")
+    logInfo "Detected a board made by Framework Computer Inc."
+    case "${product_name}" in
+    "FRANMZCP09")
+      # Handle 0x0000, DMI type 0, 26 bytes
+      # BIOS Information
+      #         Vendor: INSYDE Corp.
+      #         Version: 03.02
+      #         Release Date: 01/23/2024
+      #         Address: 0xE0000
+      #         Runtime Size: 128 kB
+      #         ROM Size: 32 MB
+      #         Characteristics:
+      #                 PCI is supported
+      #                 BIOS is upgradeable
+      #                 BIOS shadowing is allowed
+      #                 Boot from CD is supported
+      #                 Selectable boot is supported
+      #                 8042 keyboard services are supported (int 9h)
+      #                 CGA/mono video services are supported (int 10h)
+      #                 ACPI is supported
+      #                 USB legacy is supported
+      #                 BIOS boot specification is supported
+      #                 Targeted content distribution is supported
+      #                 UEFI is supported
+      #         BIOS Revision: 3.2
+#
+      # Handle 0x0001, DMI type 1, 27 bytes
+      # System Information
+      #         Manufacturer: Framework
+      #         Product Name: Laptop 16 (AMD Ryzen 7040 Series)
+      #         Version: AJ
+      #         Serial Number: FRAGACCPAJ4103000P
+      #         UUID: 17e88f57-99da-ee11-9e49-228809401050
+      #         Wake-up Type: Power Switch
+      #         SKU Number: FRAGACCP0J
+      #         Family: 16in Laptop
+#
+      # Handle 0x0002, DMI type 2, 15 bytes
+      # Base Board Information
+      #         Manufacturer: Framework
+      #         Product Name: FRANMZCP09
+      #         Version: A9
+      #         Serial Number: FRANMZCPA9410200GA
+      #         Asset Tag: *
+      #         Features:
+      #                 Board is a hosting board
+      #                 Board is replaceable
+      #         Location In Chassis: *
+      #         Chassis Handle: 0x0003
+      #         Type: Motherboard
+      #         Contained Object Handles: 0
+#
+      # Handle 0x0003, DMI type 3, 22 bytes
+      # Chassis Information
+      #         Manufacturer: Framework
+      #         Type: Notebook
+      #         Lock: Not Present
+      #         Version: AJ
+      #         Serial Number: FRAGACCPAJ4103000P
+      #         Asset Tag: FRAGACCPAJ4103000P
+      #         Boot-up State: Safe
+      #         Power Supply State: Safe
+      #         Thermal State: Safe
+      #         Security Status: None
+      #         OEM Information: 0x00000000
+      #         Height: Unspecified
+      #         Number Of Power Cords: 1
+      #         Contained Elements: 0
+      #         SKU Number: FRAGACCP0J
+#
+      # Handle 0x0004, DMI type 4, 48 bytes
+      # Processor Information
+      #         Socket Designation: FP8
+      #         Type: Central Processor
+      #         Family: Zen
+      #         Manufacturer: Advanced Micro Devices, Inc.
+      #         ID: 41 0F A7 00 FF FB 8B 17
+      #         Signature: Family 25, Model 116, Stepping 1
+      #         Flags:
+      #                 FPU (Floating-point unit on-chip)
+      #                 VME (Virtual mode extension)
+      #                 DE (Debugging extension)
+      #                 PSE (Page size extension)
+      #                 TSC (Time stamp counter)
+      #                 MSR (Model specific registers)
+      #                 PAE (Physical address extension)
+      #                 MCE (Machine check exception)
+      #                 CX8 (CMPXCHG8 instruction supported)
+      #                 APIC (On-chip APIC hardware supported)
+      #                 SEP (Fast system call)
+      #                 MTRR (Memory type range registers)
+      #                 PGE (Page global enable)
+      #                 MCA (Machine check architecture)
+      #                 CMOV (Conditional move instruction supported)
+      #                 PAT (Page attribute table)
+      #                 PSE-36 (36-bit page size extension)
+      #                 CLFSH (CLFLUSH instruction supported)
+      #                 MMX (MMX technology supported)
+      #                 FXSR (FXSAVE and FXSTOR instructions supported)
+      #                 SSE (Streaming SIMD extensions)
+      #                 SSE2 (Streaming SIMD extensions 2)
+      #                 HTT (Multi-threading)
+      #         Version: AMD Ryzen 9 7940HS w/ Radeon 780M Graphics
+      #         Voltage: 1.2 V
+      #         External Clock: 100 MHz
+      #         Max Speed: 5250 MHz
+      #         Current Speed: 4000 MHz
+      #         Status: Populated, Enabled
+      #         Upgrade: None
+      #         L1 Cache Handle: 0x0005
+      #         L2 Cache Handle: 0x0006
+      #         L3 Cache Handle: 0x0007
+      #         Serial Number: Unknown
+      #         Asset Tag: Unknown
+      #         Part Number: Unknown
+      #         Core Count: 8
+      #         Core Enabled: 8
+      #         Thread Count: 16
+      #         Characteristics:
+      #                 64-bit capable
+      #                 Multi-Core
+      #                 Hardware Thread
+      #                 Execute Protection
+      #                 Enhanced Virtualization
+      #                 Power/Performance Control
+      eval "${_name}='Framework 16'"
+      logInfo "Recognized the motherboard of a Framework 16 laptop: ${product_name}"
       res=0
       ;;
     *)
@@ -309,12 +444,12 @@ id_identify() {
       eval "${_name}='X10SDV-TLN4F'"
       logInfo "Recognized the motherboard as X10SDV-TLN4F: ${product_name}"
       res=0
-    ;;
+      ;;
     *)
       logError "Motherboard is not recognized: ${product_name}"
       ;;
-      esac
-  ;;
+    esac
+    ;;
   *)
     logError "Manufacturer is not recognized: ${manufacturer}"
     ;;
