@@ -17,13 +17,24 @@ age_install() {
     logInfo "AGE is already installed"
     return 0
   fi
+
   if [[ -z "${DOWNLOAD_DIR}" ]]; then
     logError "DOWNLOAD_DIR is not set"
     return 1
+  elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
+    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+      logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
+      return 1
+    fi
   fi
   if [[ -z "${BIN_DIR}" ]]; then
     logError "BIN_DIR is not set"
     return 1
+  elif [[ ! -d "${BIN_DIR}" ]]; then
+    if ! mkdir -p "${BIN_DIR}"; then
+      logError "Failed to create BIN_DIR at ${BIN_DIR}"
+      return 1
+    fi
   fi
 
   local url installer location=
@@ -50,8 +61,8 @@ age_install() {
   local binfile sim_file
   for binfile in "${BIN_DIR}/age"/*; do
     if [[ -x "${binfile}" ]]; then
-      sim_file="${HOME}/bin/$(basename "${binfile}")"
-      if ! mkdir -p "${HOME}/bin"; then
+      sim_file="${HOME}/.local/bin/$(basename "${binfile}")"
+      if ! mkdir -p "${HOME}/.local/bin"; then
         logError "Failed to create directory for binaries"
         return 1
       fi

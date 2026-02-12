@@ -19,7 +19,12 @@ sops_install() {
   fi
   if [[ -z "${DOWNLOAD_DIR}" ]]; then
     logError "DOWNLOAD_DIR is not set"
-    return 1
+    return
+  elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
+    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+      logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
+      return 1
+    fi
   fi
 
   logTrace "Installing SOPS"
