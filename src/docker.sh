@@ -15,9 +15,21 @@ fi
 #   0: Success
 #   1: Failure
 docker_install() {
+  local config_file="$1"
+  if [[ -z "${config_file}" ]]; then
+    logError "Missing config file path for docker_install"
+    return 1
+  fi
+
   if command -v docker &>/dev/null; then
     logInfo "Docker is already installed"
     docker --version
+
+    if ! pass_setup_gpg "${PASS_KEY_NAME}" "${config_file}"; then
+      logError "Failed to configure pass for Docker Desktop"
+      return 1
+    fi
+
     return 0
   fi
 
@@ -102,11 +114,18 @@ docker_install() {
     return 1
   fi
 
+  if ! pass_setup_gpg "${PASS_KEY_NAME}" "${config_file}"; then
+    logError "Failed to configure pass for Docker Desktop"
+    return 1
+  fi
+
   logInfo "Docker Desktop installed successfully"
   docker --version
 
   return 0
 }
+
+PASS_KEY_NAME="DOCKER_PASS_KEYID"
 
 ###########################
 ###### Startup logic ######
@@ -139,6 +158,9 @@ if ! source "${PREFIX}/lib/slf4.sh"; then
   exit 1
 elif ! source "${DK_ROOT}/src/os.sh"; then
   echo "Failed to import os.sh"
+  exit 1
+elif ! source "${DK_ROOT}/src/pass.sh"; then
+  echo "Failed to import pass.sh"
   exit 1
 fi
 

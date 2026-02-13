@@ -15,19 +15,73 @@ fi
 #   0: Success
 #   1: Failure
 android_install() {
+
+  if command -v scrcpy &>/dev/null; then
+    logInfo "scrcpy is already installed, skipping Android tools installation"
+    return 0
+  fi
+
   logInfo "Installing Android development tools..."
 
-  # Import dependencies
-  # shellcheck disable=SC1091
-  if ! source "${PH_ROOT}/pkg.sh"; then
-    logError "Failed to import pkg.sh"
+  # Install scrcpy from the latest official release (not via apt)
+  if [[ -z "${DOWNLOAD_DIR}" ]]; then
+    logError "DOWNLOAD_DIR is not set"
+    return 1
+  elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
+    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+      logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
+      return 1
+    fi
+  fi
+
+  local arch
+  arch=$(uname -m)
+  if [[ "${arch}" != "x86_64" ]]; then
+    logError "Unsupported architecture for scrcpy static release: ${arch}"
     return 1
   fi
 
-  # Install scrcpy (screen mirroring tool)
-  # Note: scrcpy declares adb as a dependency, so it will be installed automatically
-  if ! pkg_install "scrcpy" "scrcpy"; then
-    logError "Failed to install scrcpy"
+  local release_url
+  release_url=$(curl -sL "https://api.github.com/repos/Genymobile/scrcpy/releases/latest" \
+    | grep -Eo '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*scrcpy-linux-x86_64-[^"]*\.tar\.gz"' \
+    | head -n 1 \
+    | cut -d '"' -f 4)
+
+  if [[ -z "${release_url}" ]]; then
+    logError "Failed to resolve latest scrcpy release URL"
+    return 1
+  fi
+
+  local installer location
+  installer="$(basename "${release_url}")"
+  location="${DOWNLOAD_DIR}/${installer}"
+
+  if [[ ! -f "${location}" ]]; then
+    logInfo "Downloading scrcpy release..."
+    if ! curl -sSL "${release_url}" -o "${location}"; then
+      logError "Failed to download scrcpy release"
+      return 1
+    fi
+  else
+    logInfo "Using cached scrcpy release at ${location}"
+  fi
+
+  local scrcpy_root="${HOME}/.local/opt/scrcpy"
+
+  rm -rf "${scrcpy_root}"
+  mkdir -p "${scrcpy_root}"
+  if ! tar -xzf "${location}" -C "${scrcpy_root}" --strip-components=1; then
+    logError "Failed to extract scrcpy release"
+    return 1
+  fi
+
+  # Ensure scrcpy is available on PATH
+  mkdir -p "${HOME}/.local/bin"
+  ln -sf "${scrcpy_root}/scrcpy" "${HOME}/.local/bin/scrcpy"
+  ln -sf "${scrcpy_root}/adb" "${HOME}/.local/bin/adb"
+
+  if ! command -v scrcpy &>/dev/null; then
+    logError "scrcpy is not available on PATH after installation"
     return 1
   fi
 
