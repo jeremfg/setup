@@ -82,6 +82,8 @@ pass_setup_gpg() {
 %echo Generating OpenPGP key
 Key-Type: ECDSA
 Key-Curve: nistp384
+Subkey-Type: ECDH
+Subkey-Curve: nistp384
 Name-Real: ${git_user_name}
 Name-Email: ${git_user_email}
 Expire-Date: 0

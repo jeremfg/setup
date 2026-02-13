@@ -14,6 +14,7 @@ fi
 # Returns:
 #   0: Success
 #   1: Failure
+
 docker_install() {
   local config_file="$1"
   if [[ -z "${config_file}" ]]; then
