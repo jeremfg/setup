@@ -629,7 +629,7 @@ sg_pkg_is_installed_debian() {
   local cur_pkg="$2"
   local res=2
 
-  if sudo dpkg -l "${cur_pkg}" &>/dev/null; then
+  if dpkg-query -W -f='${Status}' "${cur_pkg}" 2>/dev/null | grep -q "install ok installed"; then
     res=0
   else
     if [[ -z "${repo}" ]]; then
