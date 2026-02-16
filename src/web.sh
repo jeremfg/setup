@@ -4,7 +4,7 @@
 # Web crawling utilities
 
 # Prevent sourcing this script
-if [[ -z ${GUARD_WEB_SH} ]]; then
+if [[ -z ${GUARD_WEB_SH+x} ]]; then
   GUARD_WEB_SH=1
 else
   logWarn "Re-sourcing web.sh"

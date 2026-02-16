@@ -3,7 +3,7 @@
 #
 # This script is used to configure SOPS
 
-if [[ -z ${GUARD_SOPS_SH} ]]; then
+if [[ -z ${GUARD_SOPS_SH+x} ]]; then
   GUARD_SOPS_SH=1
 else
   return 0

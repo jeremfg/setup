@@ -3,7 +3,7 @@
 #
 # This script handles configuration of hard disks
 
-if [[ -z ${GUARD_DISK_SH} ]]; then
+if [[ -z ${GUARD_DISK_SH+x} ]]; then
   GUARD_DISK_SH=1
 else
   logWarn "Re-sourcing disk.sh"

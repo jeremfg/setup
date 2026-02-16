@@ -3,7 +3,7 @@
 #
 # Script to indeitify the hardware we are running on
 
-if [[ -z ${GUARD_QN_IDENTITY_SH} ]]; then
+if [[ -z ${GUARD_QN_IDENTITY_SH+x} ]]; then
   GUARD_QN_IDENTITY_SH=1
 else
   return 0

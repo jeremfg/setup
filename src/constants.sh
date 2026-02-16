@@ -3,7 +3,7 @@
 #
 # Shared constants for setup scripts
 
-if [[ -z ${GUARD_CONSTANTS_SH} ]]; then
+if [[ -z ${GUARD_CONSTANTS_SH+x} ]]; then
   GUARD_CONSTANTS_SH=1
 else
   return 0

@@ -3,7 +3,7 @@
 #
 # This script is used to install Visual Studio Code
 
-if [[ -z ${GUARD_VSCODE_SH} ]]; then
+if [[ -z ${GUARD_VSCODE_SH+x} ]]; then
   GUARD_VSCODE_SH=1
 else
   return 0

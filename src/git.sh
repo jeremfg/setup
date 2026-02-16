@@ -3,7 +3,7 @@
 #
 # This script is used to configure git
 
-if [[ -z ${GUARD_GIT_SH} ]]; then
+if [[ -z ${GUARD_GIT_SH+x} ]]; then
   GUARD_GIT_SH=1
 else
   return 0

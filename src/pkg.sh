@@ -3,7 +3,7 @@
 #
 # This script is used to configure OS packages
 
-if [[ -z ${GUARD_PKG_SH} ]]; then
+if [[ -z ${GUARD_PKG_SH+x} ]]; then
   GUARD_PKG_SH=1
 else
   return 0

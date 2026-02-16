@@ -5,7 +5,7 @@
 # This was developed to support the following:
 # - Cyberpower CP1500PFCLCD
 
-if [[ -z ${GUARD_NUT_SH} ]]; then
+if [[ -z ${GUARD_NUT_SH+x} ]]; then
   GUARD_NUT_SH=1
 else
   return 0

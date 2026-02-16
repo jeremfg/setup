@@ -3,7 +3,7 @@
 #
 # File operation utilities
 
-if [[ -z ${GUARD_FILE_SH} ]]; then
+if [[ -z ${GUARD_FILE_SH+x} ]]; then
   GUARD_FILE_SH=1
 else
   return 0

@@ -3,7 +3,7 @@
 #
 # Network utilities
 
-if [[ -z ${GUARD_NETUTILS_SH} ]]; then
+if [[ -z ${GUARD_NETUTILS_SH+x} ]]; then
   GUARD_NETUTILS_SH=1
 else
   logWarn "Re-sourcing net.sh"

@@ -3,7 +3,7 @@
 #
 # This script is used to configure python
 
-if [[ -z ${GUARD_PYTHON_SH} ]]; then
+if [[ -z ${GUARD_PYTHON_SH+x} ]]; then
   GUARD_PYTHON_SH=1
 else
   return 0

@@ -3,7 +3,7 @@
 #
 # This script is used to configure AGE
 
-if [[ -z ${GUARD_AGE_SH} ]]; then
+if [[ -z ${GUARD_AGE_SH+x} ]]; then
   GUARD_AGE_SH=1
 else
   return 0

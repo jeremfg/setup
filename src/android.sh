@@ -3,7 +3,7 @@
 #
 # Shared library for Android phone connections via ADB and scrcpy
 
-if [[ -z ${GUARD_ANDROID_SH} ]]; then
+if [[ -z ${GUARD_ANDROID_SH+x} ]]; then
   GUARD_ANDROID_SH=1
 else
   return 0

@@ -3,7 +3,7 @@
 #
 # This script is used to identify the OS
 
-if [[ -z ${GUARD_OS_SH} ]]; then
+if [[ -z ${GUARD_OS_SH+x} ]]; then
   GUARD_OS_SH=1
 else
   return 0

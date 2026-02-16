@@ -3,7 +3,7 @@
 #
 # This script configures NetData for the system.
 
-if [[ -z ${GUARD_NETDATA_SH} ]]; then
+if [[ -z ${GUARD_NETDATA_SH+x} ]]; then
   GUARD_NETDATA_SH=1
 else
   return 0

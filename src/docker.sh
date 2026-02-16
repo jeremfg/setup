@@ -3,7 +3,7 @@
 #
 # This script is used to install Docker Desktop on Linux
 
-if [[ -z ${GUARD_DOCKER_SH} ]]; then
+if [[ -z ${GUARD_DOCKER_SH+x} ]]; then
   GUARD_DOCKER_SH=1
 else
   return 0

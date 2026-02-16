@@ -8,7 +8,7 @@
 #
 # This script uses a sendemail.conf file as input
 
-if [[ -z ${GUARD_MAIL_SH} ]]; then
+if [[ -z ${GUARD_MAIL_SH+x} ]]; then
   GUARD_MAIL_SH=1
 else
   return 0
@@ -92,7 +92,7 @@ mail_configure() {
     cat <<EOF
 # Configuration options for sending emails
 
-if [[ -z "\${GUARD_EMAIL_ENV}" ]]; then
+if [[ -z "\${GUARD_EMAIL_ENV+x}" ]]; then
   GUARD_EMAIL_ENV=1
 else
   return 0

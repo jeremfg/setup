@@ -3,7 +3,7 @@
 #
 # Utilities for manipulating environment variables
 
-if [[ -z ${GUARD_ENV_SH} ]]; then
+if [[ -z ${GUARD_ENV_SH+x} ]]; then
   GUARD_ENV_SH=1
 else
   return 0

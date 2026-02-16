@@ -3,7 +3,7 @@
 #
 # Hostname management utilities
 
-if [[ -z ${GUARD_HOSTNAME_SH} ]]; then
+if [[ -z ${GUARD_HOSTNAME_SH+x} ]]; then
   GUARD_HOSTNAME_SH=1
 else
   return 0

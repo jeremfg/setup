@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # Guard to prevent multiple sourcing
-[[ -n "${GUARD_LIBREWOLF_SH}" ]] && return 0
+[[ -n "${GUARD_LIBREWOLF_SH+x}" ]] && return 0
 readonly GUARD_LIBREWOLF_SH=1
 
 ############################################

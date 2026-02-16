@@ -3,7 +3,7 @@
 #
 # Helpers for extrepo
 
-if [[ -z ${GUARD_EXTREPO_SH} ]]; then
+if [[ -z ${GUARD_EXTREPO_SH+x} ]]; then
   GUARD_EXTREPO_SH=1
 else
   return 0

@@ -4,7 +4,7 @@
 # IPMI utilities
 
 # Prevent sourcing this script
-if [[ -z ${GUARD_IPMI_SH} ]]; then
+if [[ -z ${GUARD_IPMI_SH+x} ]]; then
   GUARD_IPMI_SH=1
 else
   logWarn "Re-sourcing ipmi.sh"

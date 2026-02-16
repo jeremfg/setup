@@ -3,7 +3,7 @@
 #
 # SSH confiuration utilities
 
-if [[ -z ${GUARD_SSH_SH} ]]; then
+if [[ -z ${GUARD_SSH_SH+x} ]]; then
   GUARD_SSH_SH=1
 else
   logWarn "Re-sourcing ssh.sh"

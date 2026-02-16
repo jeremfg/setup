@@ -3,7 +3,7 @@
 #
 # Shared helpers for pass initialization
 
-if [[ -z ${GUARD_PASS_SH} ]]; then
+if [[ -z ${GUARD_PASS_SH+x} ]]; then
   GUARD_PASS_SH=1
 else
   return 0
