@@ -10,6 +10,14 @@ else
   return 0
 fi
 
+############################################
+## Configuration
+############################################
+
+SSH_INIT_FILE="ssh_init.sh"
+SSH_DIR="${HOME}/.ssh"
+SSH_USER_INPUT_TIMEOUT=65535
+
 # Test connection to SSH server, making sure credentials are good
 #
 # Parameters:
@@ -28,20 +36,16 @@ ssh_agent_install() {
   if ! command -v ssh &>/dev/null; then
     logError "ssh not found"
     return 1
-  fi
-  if ! command -v ssh-agent &>/dev/null; then
+  elif ! command -v ssh-agent &>/dev/null; then
     logError "ssh-agent not found"
     return 1
-  fi
-  if ! command -v ssh-add &>/dev/null; then
+  elif ! command -v ssh-add &>/dev/null; then
     logError "ssh-add not found"
     return 1
-  fi
-  if ! command -v ssh-keygen &>/dev/null; then
+  elif ! command -v ssh-keygen &>/dev/null; then
     logError "ssh-add not found"
     return 1
-  fi
-  if [[ -z "${CONFIG_DIR}" ]]; then
+  elif [[ -z "${CONFIG_DIR}" ]]; then
     logError "CONFIG_DIR is not set"
     return 1
   fi
@@ -78,7 +82,10 @@ EOF
     )
 
     logInfo "Creating SSH configuration file: ${config_filename}"
-    mkdir -p "$(dirname "${config_filename}")"
+    if ! file_ensure_dir "$(dirname "${config_filename}")"; then
+      logError "Failed to create directory for SSH configuration"
+      return 1
+    fi
     echo "${file}" >"${config_filename}"
   else
     logInfo "SSH configuration already present"
@@ -86,14 +93,12 @@ EOF
 
   # Add to .bashrc
   file="source ${config_filename}"
+  # shellcheck disable=SC1090
   if ! env_config "${file}"; then
     logError "Failed to configure init script for ssh-agent"
     return 1
-  fi
-
-  # Start the agent in the current session
-  # shellcheck disable=SC1090
-  if ! source "${config_filename}"; then
+  elif ! source "${config_filename}"; then
+    # Start the agent in the current session
     logError "Failed to start ssh-agent in current session"
     return 1
   fi
@@ -126,14 +131,9 @@ ssh_key_install() {
     fi
   fi
 
-  # Is configuration already existing?
-  if ! grep -q "^${cf_line}\$" "${config_filename}"; then
-    if ! echo "${cf_line}" >>"${config_filename}"; then
-      logError "Failed to insert ssh key in configuration"
-      return 1
-    fi
-  else
-    logInfo "SSH key already configured"
+  if ! file_config_add "${config_filename}" "${cf_line}"; then
+    logError "Failed to insert ssh key in configuration"
+    return 1
   fi
 
   # Load key immediately as well
@@ -181,7 +181,7 @@ ssh_ask() {
 
   if [[ ! -d "${SSH_DIR}" ]]; then
     logInfo "Creating SSH directory: ${SSH_DIR}"
-    if ! mkdir -p "${SSH_DIR}"; then
+    if ! file_ensure_dir "${SSH_DIR}"; then
       logError "Failed to create SSH directory"
       return 1
     fi
@@ -207,7 +207,7 @@ ssh_ask() {
   done
 
   # Make sure the destination folder exists
-  if ! mkdir -p "$(dirname "${suggested_key}")"; then
+  if ! file_ensure_dir "$(dirname "${suggested_key}")"; then
     logError "Failed to create directory for key"
     return 1
   fi
@@ -273,7 +273,7 @@ EOF
     ;;
   *)
     local ssh_file="${ssh_files[$((choice - 4))]}"
-    if ! chmod 0600 "${ssh_file}"; then
+    if ! file_secure "${ssh_file}"; then
       logError "Failed to change permissions on key file"
     fi
     logInfo "User chose to use existing private key: ${ssh_file}"
@@ -297,7 +297,7 @@ ssh_generate_keypair() {
   local regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
   # Ask for email address
-  os_ask_user email "Your email address" "" 65535
+  os_ask_user email "Your email address" "" "${SSH_USER_INPUT_TIMEOUT}"
   if [[ -z "${email}" ]]; then
     echo "Error: Email address cannot be empty" >&2
     return 1
@@ -589,9 +589,7 @@ EOF
   return "${_pass_code}"
 }
 
-# Constants
-SSH_INIT_FILE="ssh_init.sh"
-SSH_DIR="${HOME}/.ssh"
+
 
 ###########################
 ###### Startup logic ######
@@ -622,14 +620,13 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${SS_ROOT}/src/env.sh"; then
+elif ! source "${SS_ROOT}/src/env.sh"; then
   logFatal "Failed to import env.sh"
-fi
-if ! source "${SS_ROOT}/src/os.sh"; then
+elif ! source "${SS_ROOT}/src/os.sh"; then
   logFatal "Failed to import os.sh"
-fi
-if ! source "${SS_ROOT}/src/setup_git"; then
+elif ! source "${SS_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
+elif ! source "${SS_ROOT}/src/setup_git"; then
   logFatal "Failed to import setup_git"
 fi
 

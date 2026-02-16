@@ -172,12 +172,12 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${PS_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
 elif ! source "${PREFIX}/lib/config.sh"; then
-  echo "Failed to import config.sh"
-  exit 1
+  logFatal "Failed to import config.sh"
 elif ! source "${PS_ROOT}/src/pkg.sh"; then
-  echo "Failed to import pkg.sh"
-  exit 1
+  logFatal "Failed to import pkg.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

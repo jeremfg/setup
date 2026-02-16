@@ -9,6 +9,13 @@ else
   return 0
 fi
 
+############################################
+## Configuration
+############################################
+
+NETDATA_CONFIG_DIR="/etc/netdata"
+NETDATA_NOTIFY_CONF="${NETDATA_CONFIG_DIR}/health_alarm_notify.conf"
+
 # Configure NetData
 #
 # Parameters:
@@ -46,13 +53,6 @@ netdata_test_email() {
   fi
 }
 
-# Example, get in the right config folder
-# cd /etc/netdata 2>/dev/null || cd /opt/netdata/etc/netdata
-
-# Constants
-NETDATA_CONFIG_DIR="/etc/netdata"
-NETDATA_NOTIFY_CONF="${NETDATA_CONFIG_DIR}/health_alarm_notify.conf"
-
 ###########################
 ###### Startup logic ######
 ###########################
@@ -82,13 +82,11 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-# shellcheck disable=SC1091
-if ! source "${PREFIX}/lib/config.sh"; then
-  echo "Failed to import config.sh"
-  exit 1
-fi
-if ! source "${ND_ROOT}/src/pkg.sh"; then
+elif ! source "${PREFIX}/lib/config.sh"; then
+  logFatal "Failed to import config.sh"
+elif ! source "${ND_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${ND_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
 fi
 

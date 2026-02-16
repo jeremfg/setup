@@ -118,40 +118,46 @@ EOF
   fi
 
   # Apply configurations to all submodules
-  # shellcheck disable=SC2016
-  if ! user="${user}" email="${email}" git submodule foreach 'bash -c '\''
-    cur_user=$(git config user.name)
-    cur_email=$(git config user.email)
+  local submodule_cmd
+  submodule_cmd=$(cat <<'EOF'
+cur_user=$(git config user.name)
+cur_email=$(git config user.email)
 
-    if [[ "${cur_user}" != "'"${user}"'" ]] || [[ "${cur_email}" != "'"${email}"'" ]]; then
-      echo "Setting git user to: '"${user}"' <'"${email}"'> in submodule '"${name}"'"
-    fi
-    if [[ "${cur_user}" != "'"${user}"'" ]]; then
-      if ! git config user.name "'"${user}"'"; then
-        echo "Failed to set git user in submodule '"${name}"'"
-        exit 1
-      fi
-    fi
-    if [[ "${cur_email}" != "'"${email}"'" ]]; then
-      if ! git config user.email "'"${email}"'"; then
-        echo "Failed to set git email in submodule '"${name}"'"
-        exit 1
-      fi
-    fi
+if [[ "${cur_user}" != "${GIT_SUBMODULE_USER}" ]] || [[ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]]; then
+  echo "Setting git user to: ${GIT_SUBMODULE_USER} <${GIT_SUBMODULE_EMAIL}> in submodule ${name}"
+fi
+if [[ "${cur_user}" != "${GIT_SUBMODULE_USER}" ]]; then
+  if ! git config user.name "${GIT_SUBMODULE_USER}"; then
+    echo "Failed to set git user in submodule ${name}"
+    exit 1
+  fi
+fi
+if [[ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]]; then
+  if ! git config user.email "${GIT_SUBMODULE_EMAIL}"; then
+    echo "Failed to set git email in submodule ${name}"
+    exit 1
+  fi
+fi
 
-    push_default=$(git config push.default)
-    if [[ "${push_default}" != "simple" ]]; then
-      echo "Setting push.default to simple in submodule '"${name}"'"
-      if ! git config push.default simple; then
-        echo "Failed to set push.default in submodule '"${name}"'"
-        exit 1
-      fi
-    fi
-  '\'''; then
+push_default=$(git config push.default)
+if [[ "${push_default}" != "simple" ]]; then
+  echo "Setting push.default to simple in submodule ${name}"
+  if ! git config push.default simple; then
+    echo "Failed to set push.default in submodule ${name}"
+    exit 1
+  fi
+fi
+EOF
+)
+  export GIT_SUBMODULE_USER="${user}"
+  export GIT_SUBMODULE_EMAIL="${email}"
+  if ! git submodule foreach "${submodule_cmd}"; then
     logError "Failed to apply git configuration to submodules"
+    unset GIT_SUBMODULE_USER GIT_SUBMODULE_EMAIL
     popd >/dev/null || return 1
     return 1
   fi
+  unset GIT_SUBMODULE_USER GIT_SUBMODULE_EMAIL
 
   popd >/dev/null || return 1
   return 0
@@ -306,14 +312,11 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${GG_ROOT}/src/pkg.sh"; then
+elif ! source "${GG_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
-fi
-if ! source "${GG_ROOT}/src/ssh.sh"; then
+elif ! source "${GG_ROOT}/src/ssh.sh"; then
   logFatal "Failed to import ssh.sh"
-fi
-if ! source "${GG_ROOT}/src/setup_git"; then
+elif ! source "${GG_ROOT}/src/setup_git"; then
   logFatal "Failed to import setup_git"
 fi
 

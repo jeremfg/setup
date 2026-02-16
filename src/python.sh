@@ -13,11 +13,9 @@ python_install() {
   if command -v pip3 &>/dev/null; then
     logInfo "pip is already installed"
     return 0
-  else
-    if ! pkg_install "python3" "python3-pip"; then
-      logError "Failed to install python3 and python3-pip"
-      return 1
-    fi
+  elif ! pkg_install "python3" "python3-pip"; then
+    logError "Failed to install python3 and python3-pip"
+    return 1
   fi
 
   if ! command -v pip3 &>/dev/null; then
@@ -109,8 +107,9 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${PY_ROOT}/src/pkg.sh"; then
+elif ! source "${PY_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${PY_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
 fi
 

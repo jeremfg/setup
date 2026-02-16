@@ -9,6 +9,15 @@ else
   return 0
 fi
 
+############################################
+## Configuration
+############################################
+
+SOPS_VERSION="3.9.1"
+SOPS_URL_BASE="https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/"
+SOPS_REDHAT="sops-${SOPS_VERSION}-1.x86_64.rpm"
+SOPS_DEBIAN="sops_${SOPS_VERSION}_amd64.deb"
+
 # Install SOPS (if not already installed)
 #
 # Parameters:
@@ -16,12 +25,11 @@ sops_install() {
   if command -v sops &>/dev/null; then
     logInfo "SOPS is already installed"
     return 0
-  fi
-  if [[ -z "${DOWNLOAD_DIR}" ]]; then
+  elif [[ -z "${DOWNLOAD_DIR}" ]]; then
     logError "DOWNLOAD_DIR is not set"
     return
   elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
-    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+    if ! file_ensure_dir "${DOWNLOAD_DIR}"; then
       logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
       return 1
     fi
@@ -46,17 +54,14 @@ sops_install() {
 
 # Untested
 sops_install_ubuntu() {
-  local url installer location
+  local url location
   url="${SOPS_URL_BASE}${SOPS_DEBIAN}"
-  installer="$(basename "${url}")"
-  location="${DOWNLOAD_DIR}/${installer}"
-  if [[ ! -f "${location}" ]]; then
-    logTrace "Downloading into ${location} from ${url}"
-    if ! curl -sSL -o "${location}" "${url}"; then
-      logError "Failed to download SOPS installer"
-      return 1
-    fi
+
+  if ! web_download location "${url}" "${DOWNLOAD_DIR}"; then
+    logError "Failed to download SOPS installer"
+    return 1
   fi
+
   if ! sudo apt install -y "${location}"; then
     logError "Failed to install SOPS"
     return 1
@@ -64,33 +69,19 @@ sops_install_ubuntu() {
 }
 
 sops_install_centos() {
-  local url installer location
+  local url location
   url="${SOPS_URL_BASE}${SOPS_REDHAT}"
-  installer="$(basename "${url}")"
-  location="${DOWNLOAD_DIR}/${installer}"
-  if [[ ! -f "${location}" ]]; then
-    if ! mkdir -p "$(dirname "${location}")"; then
-      logError "Failed to create directory for SOPS installer"
-      return 1
-    fi
-    logTrace "Downloading into ${location} from ${url}"
-    if ! curl -sSL -o "${location}" "${url}"; then
-      logError "Failed to download SOPS installer"
-      return 1
-    fi
+
+  if ! web_download location "${url}" "${DOWNLOAD_DIR}"; then
+    logError "Failed to download SOPS installer"
+    return 1
   fi
+
   if ! sudo yum install -y "${location}"; then
     logError "Failed to install SOPS"
     return 1
   fi
 }
-
-# Constants
-
-SOPS_VERSION="3.9.1"
-SOPS_URL_BASE="https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/"
-SOPS_REDHAT="sops-${SOPS_VERSION}-1.x86_64.rpm"
-SOPS_DEBIAN="sops_${SOPS_VERSION}_amd64.deb"
 
 ###########################
 ###### Startup logic ######
@@ -121,12 +112,16 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${SO_ROOT}/src/os.sh"; then
+elif ! source "${SO_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${SO_ROOT}/src/os.sh"; then
   logFatal "Failed to import os.sh"
-fi
-if ! source "${SO_ROOT}/src/git.sh"; then
+elif ! source "${SO_ROOT}/src/git.sh"; then
   logFatal "Failed to import git.sh"
+elif ! source "${SO_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
+elif ! source "${SO_ROOT}/src/web.sh"; then
+  logFatal "Failed to import web.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

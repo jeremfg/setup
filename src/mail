@@ -14,6 +14,17 @@ else
   return 0
 fi
 
+############################################
+## Configuration
+############################################
+
+# Known locations where ssmtp configuration files can be found
+SSMTP_CONF=(
+  "/etc/ssmtp/ssmtp.conf"
+  "/etc/ssmtp.conf"
+)
+MAIL_CFG_NAME="email.env"
+
 mail_configure_prerequisites() {
   if ! command -v sops &>/dev/null; then
     logError "SOPS is required"
@@ -468,21 +479,12 @@ EOF
   return 0
 }
 
-# Arrays of knnwn locations where sssmtp configuration files can be found
-SSMTP_CONF=(
-  "/etc/ssmtp/ssmtp.conf"
-  "/etc/ssmtp.conf"
-)
-
 # Variables loaded externally
 if [[ -z "${SSMTP_HUB}" ]]; then SSMTP_HUB=""; fi
 if [[ -z "${SSMTP_USER}" ]]; then SSMTP_USER=""; fi
 if [[ -z "${SSMTP_PASS}" ]]; then SSMTP_PASS=""; fi
 if [[ -z "${SSMTP_USESTARTTLS}" ]]; then SSMTP_USESTARTTLS=""; fi
 if [[ -z "${SENDER}" ]]; then SENDER=""; fi
-
-# Constants
-MAIL_CFG_NAME="email.env"
 
 ###########################
 ###### Startup logic ######
@@ -515,12 +517,11 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-# shellcheck disable=SC1091
-if ! source "${PREFIX}/lib/config.sh"; then
+elif ! source "${PREFIX}/lib/config.sh"; then
   logFatal "Failed to import config.sh"
-fi
-if ! source "${MX_ROOT}/src/git.sh"; then
+elif ! source "${MX_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${MX_ROOT}/src/git.sh"; then
   logFatal "Failed to import git.sh"
 fi
 

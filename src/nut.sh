@@ -37,24 +37,19 @@ nut_setup() {
     if [[ -z ${_nut_driver} ]]; then
       logError "UPS driver not specified"
       return 1
-    fi
-    if [[ -z ${_nut_daemon} ]]; then
+    elif [[ -z ${_nut_daemon} ]]; then
       logError "NUT daemon not specified"
       return 1
-    fi
-    if [[ -z ${_nut_user} ]]; then
+    elif [[ -z ${_nut_user} ]]; then
       logError "NUT user not specified"
       return 1
-    fi
-    if [[ -z "${!_nut_driver}" ]]; then
+    elif [[ -z "${!_nut_driver}" ]]; then
       logError "UPS driver not defined"
       return 1
-    fi
-    if [[ -z "${!_nut_daemon}" ]]; then
+    elif [[ -z "${!_nut_daemon}" ]]; then
       logError "NUT daemon not defined"
       return 1
-    fi
-    if [[ -z "${!_nut_user}" ]]; then
+    elif [[ -z "${!_nut_user}" ]]; then
       logError "NUT user not defined"
       return 1
     fi
@@ -63,16 +58,13 @@ nut_setup() {
     if [[ -z ${_nut_monitor} ]]; then
       logError "NUT monitor not specified"
       return 1
-    fi
-    if [[ -z ${_nut_scheduler} ]]; then
+    elif [[ -z ${_nut_scheduler} ]]; then
       logError "NUT scheduler not specified"
       return 1
-    fi
-    if [[ -z "${!_nut_monitor}" ]]; then
+    elif [[ -z "${!_nut_monitor}" ]]; then
       logError "NUT monitor not defined"
       return 1
-    fi
-    if [[ -z "${!_nut_scheduler}" ]]; then
+    elif [[ -z "${!_nut_scheduler}" ]]; then
       logError "NUT scheduler not defined"
       return 1
     fi
@@ -173,15 +165,11 @@ nut_set_mode() {
 
   # Create backup of configuration file
   local backup_file
-  if ! os_get_next_filename backup_file "${nut_cfg}.bak"; then
-    logError "Failed to get backup filename for ${nut_cfg}"
-    return 1
-  fi
-
-  if ! cp "${nut_cfg}" "${backup_file}"; then
+  if ! file_backup backup_file "${nut_cfg}"; then
     logError "Failed to backup NUT configuration"
     return 1
   fi
+  logTrace "Backup created: ${backup_file}"
 
   # Update mode
   if ! sed -i "s/^MODE=.*/MODE=${MODE}/" "${nut_cfg}"; then
@@ -239,12 +227,10 @@ nut_configure_file() {
   if [[ -z ${file} ]]; then
     logError "File not specified"
     return 1
-  fi
-  if [[ -z ${file_content_var} ]]; then
+  elif [[ -z ${file_content_var} ]]; then
     logError "File content variable not specified"
     return 1
-  fi
-  if [[ -z "${!file_content_var}" ]]; then
+  elif [[ -z "${!file_content_var}" ]]; then
     logError "File content not defined"
     return 1
   fi
@@ -256,14 +242,11 @@ nut_configure_file() {
 
       # Backup current configuration
       local backup_file
-      if ! os_get_next_filename backup_file "${file}.bak"; then
-        logError "Failed to get backup filename for ${file}"
-        return 1
-      fi
-      if ! cp "${file}" "${backup_file}"; then
+      if ! file_backup backup_file "${file}"; then
         logError "Failed to backup NUT configuration file: ${file}"
         return 1
       fi
+      logTrace "Backup created: ${backup_file}"
 
       # Write new configuration
       if ! echo "${!file_content_var}" >"${file}"; then
@@ -320,6 +303,14 @@ nut_restart() {
   return 0
 }
 
+#############################
+###### Local constants ######
+#############################
+
+# Default shared constants when sourced without constants.sh
+if [[ -z "${SETUP_PREFIX_USER+x}" ]]; then SETUP_PREFIX_USER=""; fi
+if [[ -z "${SETUP_PREFIX_ROOT+x}" ]]; then SETUP_PREFIX_ROOT=""; fi
+
 ###########################
 ###### Startup logic ######
 ###########################
@@ -350,8 +341,11 @@ if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
 fi
+# shellcheck disable=SC1091
 if ! source "${NU_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
+elif ! source "${NU_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

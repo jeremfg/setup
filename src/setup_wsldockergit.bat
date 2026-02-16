@@ -17,6 +17,10 @@ for %%i in (%scriptURL%) do set "scriptName=%%~nxi"
 :: This is the work directory
 set pwd=%~dp0
 
+:::::::::::::::::::::::::::
+:: Startup logic         ::
+:::::::::::::::::::::::::::
+
 :: If we don't have the file, download it!
 if not exist "%pwd%%scriptName%" (
   :: Use powershel for the download

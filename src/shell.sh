@@ -69,10 +69,13 @@ if [[ -z "${PREFIX}" ]]; then
   fi
 fi
 
+# Import dependencies
 # shellcheck disable=SC1091
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${SHU_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

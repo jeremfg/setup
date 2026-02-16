@@ -20,9 +20,7 @@ docker_install() {
   if [[ -z "${config_file}" ]]; then
     logError "Missing config file path for docker_install"
     return 1
-  fi
-
-  if command -v docker &>/dev/null; then
+  elif command -v docker &>/dev/null; then
     logInfo "Docker is already installed"
     docker --version
 
@@ -46,22 +44,20 @@ docker_install() {
 
   # Add Docker's official GPG key
   logInfo "Adding Docker GPG key..."
-  if ! sudo install -m 0755 -d /etc/apt/keyrings; then
+  if ! sudo install -m 0755 -d "${SETUP_APT_KEYRING_DIR}"; then
     logError "Failed to create keyrings directory"
     return 1
-  fi
-
-  if ! sudo curl -fsSL "https://download.docker.com/linux/${detected_os}/gpg" -o /etc/apt/keyrings/docker.asc; then
+  elif ! sudo curl -fsSL "https://download.docker.com/linux/${detected_os}/gpg" -o "${SETUP_APT_KEYRING_DIR}/docker.asc"; then
     logError "Failed to download Docker GPG key"
     return 1
   fi
 
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  sudo chmod a+r "${SETUP_APT_KEYRING_DIR}/docker.asc"
 
   # Remove any existing Docker repository configuration
-  if [[ -f /etc/apt/sources.list.d/docker.list ]]; then
+  if [[ -f "${SETUP_APT_SOURCES_DIR}/docker.list" ]]; then
     logInfo "Removing old Docker repository configuration..."
-    sudo rm -f /etc/apt/sources.list.d/docker.list
+    sudo rm -f "${SETUP_APT_SOURCES_DIR}/docker.list"
   fi
 
   # Add Docker repository
@@ -79,9 +75,9 @@ docker_install() {
     codename=$(. /etc/os-release && echo "${VERSION_CODENAME}")
   fi
 
-  echo "deb [arch=${arch} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${detected_os} \
+  echo "deb [arch=${arch} signed-by=${SETUP_APT_KEYRING_DIR}/docker.asc] https://download.docker.com/linux/${detected_os} \
   ${codename} stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo tee "${SETUP_APT_SOURCES_DIR}/docker.list" > /dev/null
 
   # Update apt cache
   if ! sudo apt-get update; then
@@ -91,17 +87,14 @@ docker_install() {
 
   # Download and install Docker Desktop (dependencies will be resolved automatically)
   logInfo "Installing Docker Desktop..."
-  local temp_dir
+  local temp_dir deb_file
   temp_dir=$(mktemp -d)
-  local deb_file="${temp_dir}/docker-desktop.deb"
 
-  if ! curl -fsSL "https://desktop.docker.com/linux/main/${arch}/docker-desktop-${arch}.deb" -o "${deb_file}"; then
+  if ! web_download deb_file "https://desktop.docker.com/linux/main/${arch}/docker-desktop-${arch}.deb" "${temp_dir}"; then
     logError "Failed to download Docker Desktop"
     rm -rf "${temp_dir}"
     return 1
-  fi
-
-  if ! sudo apt-get install -y "${deb_file}"; then
+  elif ! sudo apt-get install -y "${deb_file}"; then
     logError "Failed to install Docker Desktop"
     rm -rf "${temp_dir}"
     return 1
@@ -113,9 +106,7 @@ docker_install() {
   if ! command -v docker &>/dev/null; then
     logError "Docker installation verification failed"
     return 1
-  fi
-
-  if ! pass_setup_gpg "${PASS_KEY_NAME}" "${config_file}"; then
+  elif ! pass_setup_gpg "${PASS_KEY_NAME}" "${config_file}"; then
     logError "Failed to configure pass for Docker Desktop"
     return 1
   fi
@@ -126,7 +117,15 @@ docker_install() {
   return 0
 }
 
+#############################
+###### Local constants ######
+#############################
+
 PASS_KEY_NAME="DOCKER_PASS_KEYID"
+
+# Default shared constants when sourced without constants.sh
+if [[ -z "${SETUP_APT_KEYRING_DIR+x}" ]]; then SETUP_APT_KEYRING_DIR=""; fi
+if [[ -z "${SETUP_APT_SOURCES_DIR+x}" ]]; then SETUP_APT_SOURCES_DIR=""; fi
 
 ###########################
 ###### Startup logic ######
@@ -157,12 +156,14 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${DK_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
 elif ! source "${DK_ROOT}/src/os.sh"; then
-  echo "Failed to import os.sh"
-  exit 1
+  logFatal "Failed to import os.sh"
 elif ! source "${DK_ROOT}/src/pass.sh"; then
-  echo "Failed to import pass.sh"
-  exit 1
+  logFatal "Failed to import pass.sh"
+elif ! source "${DK_ROOT}/src/web.sh"; then
+  logFatal "Failed to import web.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

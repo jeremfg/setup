@@ -22,33 +22,6 @@ os() {
   return ${res}
 }
 
-# Retrieve the next filename in a sequence
-#
-# Parameters:
-#   $1[out]: New filename
-#   $2[in]: Desired filename
-os_get_next_filename() {
-  local _new="$1"
-  local _desired="$2"
-  local res
-
-  local ext="${_desired##*.}"
-  local base="${_desired%.*}"
-  local -i nb
-  res="${base}.${ext}"
-  while [[ -f "${res}" ]]; do
-    if [[ -z "${nb}" ]]; then
-      nb=0
-    else
-      nb=$((nb + 1))
-    fi
-    res="${base}_${nb}.${ext}"
-  done
-
-  logInfo "Next filename: ${res}"
-  eval "${_new}='${res}'"
-}
-
 # Identify the current OS
 #
 # Parameters:
@@ -98,67 +71,6 @@ os_ask_user() {
   return 0
 }
 
-# Add a configuration line to the specified file
-#
-# Parameters:
-#   $1[in]: Configuration file
-#   $2[in]: Configuration line
-# Returns:
-#   0: Success
-#   1: Failure
-os_add_config() {
-  local cfg_file="$1"
-  local cfg_line="$2"
-
-  if [[ -z "${cfg_line}" ]]; then
-    logError "Cannot configure an empty line"
-    return 1
-  fi
-
-  if [[ -f "${cfg_file}" ]]; then
-    if ! grep -q "^${cfg_line}\$" "${cfg_file}"; then
-      # Configuration line is absent. Add it
-      if ! echo "${cfg_line}" >>"${cfg_file}"; then
-        logError "Failed to insert line in configuration: ${cfg_line}"
-        return 1
-      fi
-    else
-      logInfo "Configuration line already present: ${cfg_line}"
-    fi
-  else
-    echo "${cfg_line}" >"${cfg_file}"
-    logInfo "Created configuration file: ${cfg_file} and added line: ${cfg_line}"
-  fi
-
-  return 0
-}
-
-os_rm_config() {
-  local cfg_file="$1"
-  local cfg_line="$2"
-
-  if [[ -z "${cfg_line}" ]]; then
-    logError "Cannot remove an empty line"
-    return 1
-  fi
-
-  if [[ -f "${cfg_file}" ]]; then
-    if grep -q "^${cfg_line}\$" "${cfg_file}"; then
-      # Configuration line is present. Remove it
-      if ! sed -i "/^${cfg_line}$/d" "${cfg_file}"; then
-        logError "Failed to remove line in configuration: ${cfg_line}"
-        return 1
-      fi
-    else
-      logInfo "Configuration line not present: ${cfg_line}"
-    fi
-  else
-    logWarn "Configuration file not found: ${cfg_file}"
-  fi
-
-  return 0
-}
-
 ###########################
 ###### Startup logic ######
 ###########################
@@ -188,8 +100,9 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${OS_ROOT}/src/setup_git"; then
+elif ! source "${OS_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${OS_ROOT}/src/setup_git"; then
   logFatal "Failed to import setup_git"
 fi
 

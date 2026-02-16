@@ -11,6 +11,12 @@ else
   return 0
 fi
 
+############################################
+## Configuration
+############################################
+
+TRUENAS_SCALE_DOWNLOAD_URL="https://www.truenas.com/download-truenas-scale/"
+
 # Retrieves the latest version of TrueNAS SCALE
 #
 # Parameters:
@@ -27,7 +33,7 @@ truenas_scale_latest_url() {
   fi
 
   local url regex_a html_content res
-  url="https://www.truenas.com/download-truenas-scale/"
+  url="${TRUENAS_SCALE_DOWNLOAD_URL}"
   regex_a='<a([^<]+)href="([^"]+)"[^<]+Download STABLE</a>'
 
   if ! html_content=$(curl -s "${url}"); then
@@ -66,9 +72,7 @@ web_download() {
   if ! command -v curl &>/dev/null; then
     logError "curl not found"
     return 1
-  fi
-
-  if [[ -z ${url} ]]; then
+  elif [[ -z ${url} ]]; then
     logError "URL not specified"
     return 1
   elif [[ -z ${output_dir} ]]; then
@@ -78,7 +82,7 @@ web_download() {
 
   if [[ ! -d ${output_dir} ]]; then
     logWarn "Output directory does not exist: ${output_dir}"
-    if ! mkdir -p "${output_dir}"; then
+    if ! file_ensure_dir "${output_dir}"; then
       logError "Failed to create output directory: ${output_dir}"
       return 1
     fi
@@ -132,6 +136,10 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${WEB_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${WEB_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

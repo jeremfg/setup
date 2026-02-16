@@ -240,7 +240,7 @@ env_config() {
     return 1
   fi
 
-  if ! os_add_config "${rcFile}" "${cfg_line}"; then
+  if ! file_config_add "${rcFile}" "${cfg_line}"; then
     return 1
   fi
 
@@ -279,11 +279,11 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${EV_ROOT}/src/os.sh"; then
+elif ! source "${EV_ROOT}/src/os.sh"; then
   logFatal "Failed to import os.sh"
-fi
-if ! source "${EV_ROOT}/src/setup_git"; then
+elif ! source "${EV_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
+elif ! source "${EV_ROOT}/src/setup_git"; then
   logFatal "Failed to import setup_git"
 fi
 

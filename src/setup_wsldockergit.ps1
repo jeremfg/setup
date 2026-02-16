@@ -758,9 +758,9 @@ function Get-Root {
 }
 
 try {
-  ###############
-  # Entry Point #
-  ###############
+  #########################
+  # Startup logic         #
+  #########################
   $global:all_args = @()
   # Add bound parameters with their names
   foreach ($param in $PSBoundParameters.GetEnumerator()) {

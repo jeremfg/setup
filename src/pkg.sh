@@ -52,8 +52,9 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${PK_ROOT}/src/os.sh"; then
+elif ! source "${PK_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${PK_ROOT}/src/os.sh"; then
   logFatal "Failed to import os.sh"
 fi
 

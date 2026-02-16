@@ -28,7 +28,7 @@ android_install() {
     logError "DOWNLOAD_DIR is not set"
     return 1
   elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
-    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+    if ! file_ensure_dir "${DOWNLOAD_DIR}"; then
       logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
       return 1
     fi
@@ -36,14 +36,14 @@ android_install() {
 
   local arch
   arch=$(uname -m)
-  if [[ "${arch}" != "x86_64" ]]; then
+  if [[ "${arch}" != "${ANDROID_SCRCPY_ARCH}" ]]; then
     logError "Unsupported architecture for scrcpy static release: ${arch}"
     return 1
   fi
 
   local release_url
-  release_url=$(curl -sL "https://api.github.com/repos/Genymobile/scrcpy/releases/latest" \
-    | grep -Eo '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*scrcpy-linux-x86_64-[^"]*\.tar\.gz"' \
+  release_url=$(curl -sL "${ANDROID_SCRCPY_RELEASE_API_URL}" \
+    | grep -Eo "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${ANDROID_SCRCPY_TARBALL_REGEX}\"" \
     | head -n 1 \
     | cut -d '"' -f 4)
 
@@ -52,33 +52,37 @@ android_install() {
     return 1
   fi
 
-  local installer location
-  installer="$(basename "${release_url}")"
-  location="${DOWNLOAD_DIR}/${installer}"
-
-  if [[ ! -f "${location}" ]]; then
-    logInfo "Downloading scrcpy release..."
-    if ! curl -sSL "${release_url}" -o "${location}"; then
-      logError "Failed to download scrcpy release"
-      return 1
-    fi
-  else
-    logInfo "Using cached scrcpy release at ${location}"
+  local location
+  if ! web_download location "${release_url}" "${DOWNLOAD_DIR}"; then
+    logError "Failed to download scrcpy release"
+    return 1
   fi
 
-  local scrcpy_root="${HOME}/.local/opt/scrcpy"
+  local scrcpy_root="${ANDROID_SCRCPY_ROOT}"
 
   rm -rf "${scrcpy_root}"
-  mkdir -p "${scrcpy_root}"
+  if ! file_ensure_dir "${scrcpy_root}"; then
+    logError "Failed to create scrcpy root directory: ${scrcpy_root}"
+    return 1
+  fi
   if ! tar -xzf "${location}" -C "${scrcpy_root}" --strip-components=1; then
     logError "Failed to extract scrcpy release"
     return 1
   fi
 
   # Ensure scrcpy is available on PATH
-  mkdir -p "${HOME}/.local/bin"
-  ln -sf "${scrcpy_root}/scrcpy" "${HOME}/.local/bin/scrcpy"
-  ln -sf "${scrcpy_root}/adb" "${HOME}/.local/bin/adb"
+  if ! file_ensure_dir "${SETUP_LOCAL_BIN}"; then
+    logError "Failed to create local bin directory: ${SETUP_LOCAL_BIN}"
+    return 1
+  fi
+  if ! file_symlink "${scrcpy_root}/scrcpy" "${SETUP_LOCAL_BIN}/scrcpy"; then
+    logError "Failed to create scrcpy symlink"
+    return 1
+  fi
+  if ! file_symlink "${scrcpy_root}/adb" "${SETUP_LOCAL_BIN}/adb"; then
+    logError "Failed to create adb symlink"
+    return 1
+  fi
 
   if ! command -v scrcpy &>/dev/null; then
     logError "scrcpy is not available on PATH after installation"
@@ -102,7 +106,7 @@ android_install() {
 adb_connect() {
   local phone_name="$1"
   local phone_dns="$2"
-  local phone_port="${3:-5555}"
+  local phone_port="${3:-${ANDROID_ADB_DEFAULT_PORT}}"
   local phone_serial="${4:-}"
 
   # Check if adb is installed
@@ -127,7 +131,7 @@ adb_connect() {
         adb -s "${phone_serial}" tcpip "${phone_port}"
 
         logInfo "Waiting for device to restart in TCP/IP mode..."
-        sleep 3
+        sleep "${ANDROID_ADB_TCPIP_SLEEP}"
 
         logInfo "Connecting to ${phone_dns}:${phone_port}..."
         adb connect "${phone_dns}:${phone_port}"
@@ -177,6 +181,14 @@ scrcpy_start() {
   return 0
 }
 
+#############################
+###### Local constants ######
+#############################
+
+# Default shared constants when sourced without constants.sh
+if [[ -z "${SETUP_LOCAL_BIN+x}" ]]; then SETUP_LOCAL_BIN=""; fi
+if [[ -z "${SETUP_LOCAL_OPT+x}" ]]; then SETUP_LOCAL_OPT=""; fi
+
 ###########################
 ###### Startup logic ######
 ###########################
@@ -205,7 +217,21 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
+elif ! source "${PH_ROOT}/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${PH_ROOT}/file.sh"; then
+  logFatal "Failed to import file.sh"
+elif ! source "${PH_ROOT}/web.sh"; then
+  logFatal "Failed to import web.sh"
 fi
+
+# Constants (tool-specific)
+ANDROID_SCRCPY_ARCH="x86_64"
+ANDROID_SCRCPY_RELEASE_API_URL="https://api.github.com/repos/Genymobile/scrcpy/releases/latest"
+ANDROID_SCRCPY_TARBALL_REGEX="scrcpy-linux-${ANDROID_SCRCPY_ARCH}-[^\" ]*\\.tar\\.gz"
+ANDROID_SCRCPY_ROOT="${SETUP_LOCAL_OPT}/scrcpy"
+ANDROID_ADB_DEFAULT_PORT=5555
+ANDROID_ADB_TCPIP_SLEEP=3
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped

@@ -5,7 +5,10 @@
 [[ -n "${GUARD_LIBREWOLF_SH}" ]] && return 0
 readonly GUARD_LIBREWOLF_SH=1
 
-# Globals
+############################################
+## Configuration
+############################################
+
 LIBREWOLF_PROFILE_BASE="${HOME}/.librewolf"
 LIBREWOLF_PROFILES_INI="${LIBREWOLF_PROFILE_BASE}/profiles.ini"
 
@@ -27,7 +30,10 @@ librewolf_install() {
 _librewolf_configure_profiles_enabled() {
   if [[ ! -f "${LIBREWOLF_PROFILES_INI}" ]]; then
     logInfo "Enabling multi-profile support..."
-    mkdir -p "${LIBREWOLF_PROFILE_BASE}"
+    if ! file_ensure_dir "${LIBREWOLF_PROFILE_BASE}"; then
+      logError "Failed to create Librewolf profile base: ${LIBREWOLF_PROFILE_BASE}"
+      return 1
+    fi
 
     cat > "${LIBREWOLF_PROFILES_INI}" << 'EOF'
 [Profile0]
@@ -41,7 +47,10 @@ StartWithLastProfile=1
 Version=2
 EOF
 
-    mkdir -p "${LIBREWOLF_PROFILE_BASE}/default"
+    if ! file_ensure_dir "${LIBREWOLF_PROFILE_BASE}/default"; then
+      logError "Failed to create Librewolf default profile"
+      return 1
+    fi
     logInfo "Multi-profile support enabled"
   else
     logInfo "Multi-profile support already configured"
@@ -177,3 +186,48 @@ librewolf_configure() {
   logInfo "Librewolf configuration complete"
   return 0
 }
+
+###########################
+###### Startup logic ######
+###########################
+
+# Get directory of this script
+# https://stackoverflow.com/a/246128
+LW_SOURCE=${BASH_SOURCE[0]}
+while [[ -L "${LW_SOURCE}" ]]; do # resolve $LW_SOURCE until the file is no longer a symlink
+  LW_ROOT=$(cd -P "$(dirname "${LW_SOURCE}")" >/dev/null 2>&1 && pwd)
+  LW_SOURCE=$(readlink "${LW_SOURCE}")
+  [[ ${LW_SOURCE} != /* ]] && LW_SOURCE=${LW_ROOT}/${LW_SOURCE} # if $LW_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+LW_ROOT=$(cd -P "$(dirname "${LW_SOURCE}")" >/dev/null 2>&1 && pwd)
+
+# Determine BPKG's global prefix
+if [[ -z "${PREFIX}" ]]; then
+  if [[ $(id -u || true) -eq 0 ]]; then
+    PREFIX="/usr/local"
+  else
+    PREFIX="${HOME}/.local"
+  fi
+fi
+
+# Import dependencies
+# shellcheck disable=SC1091
+if ! source "${PREFIX}/lib/slf4.sh"; then
+  echo "Failed to import slf4.sh"
+  exit 1
+elif ! source "${LW_ROOT}/extrepo.sh"; then
+  logFatal "Failed to import extrepo.sh"
+elif ! source "${LW_ROOT}/file.sh"; then
+  logFatal "Failed to import file.sh"
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  # This script was piped
+  logFatal "This script cannot be piped"
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  :
+else
+  # This script was executed
+  logFatal "This script cannot be executed"
+fi

@@ -16,13 +16,11 @@ age_install() {
   if command -v age &>/dev/null; then
     logInfo "AGE is already installed"
     return 0
-  fi
-
-  if [[ -z "${DOWNLOAD_DIR}" ]]; then
+  elif [[ -z "${DOWNLOAD_DIR}" ]]; then
     logError "DOWNLOAD_DIR is not set"
     return 1
   elif [[ ! -d "${DOWNLOAD_DIR}" ]]; then
-    if ! mkdir -p "${DOWNLOAD_DIR}"; then
+    if ! file_ensure_dir "${DOWNLOAD_DIR}"; then
       logError "Failed to create DOWNLOAD_DIR at ${DOWNLOAD_DIR}"
       return 1
     fi
@@ -31,27 +29,18 @@ age_install() {
     logError "BIN_DIR is not set"
     return 1
   elif [[ ! -d "${BIN_DIR}" ]]; then
-    if ! mkdir -p "${BIN_DIR}"; then
+    if ! file_ensure_dir "${BIN_DIR}"; then
       logError "Failed to create BIN_DIR at ${BIN_DIR}"
       return 1
     fi
   fi
 
-  local url installer location=
+  local url location
   url="${AGE_URL}"
-  installer="$(basename "${url}")"
-  location="${DOWNLOAD_DIR}/${installer}"
 
-  if [[ ! -f "${location}" ]]; then
-    if ! mkdir -p "$(dirname "${location}")"; then
-      logError "Failed to create directory for AGE archive"
-      return 1
-    fi
-    logTrace "Downloading into ${location} from ${url}"
-    if ! curl -sSL -o "${location}" "${url}"; then
-      logError "Failed to download age archive"
-      return 1
-    fi
+  if ! web_download location "${url}" "${DOWNLOAD_DIR}"; then
+    logError "Failed to download age archive"
+    return 1
   fi
   if ! tar -xvf "${location}" -C "${BIN_DIR}"; then
     logFatal "Failed to extract age"
@@ -61,14 +50,14 @@ age_install() {
   local binfile sim_file
   for binfile in "${BIN_DIR}/age"/*; do
     if [[ -x "${binfile}" ]]; then
-      sim_file="${HOME}/.local/bin/$(basename "${binfile}")"
-      if ! mkdir -p "${HOME}/.local/bin"; then
+      sim_file="${AGE_SYMLINK_DIR}/$(basename "${binfile}")"
+      if ! file_ensure_dir "${AGE_SYMLINK_DIR}"; then
         logError "Failed to create directory for binaries"
         return 1
       fi
       if [[ ! -L "${sim_file}" ]]; then
         logTrace "Creating symlink: ${sim_file}"
-        if ! ln -s "${binfile}" "${sim_file}"; then
+        if ! file_symlink "${binfile}" "${sim_file}"; then
           logError "Failed to create symlink"
           return 1
         fi
@@ -96,11 +85,11 @@ age_install() {
 #   1: If we couldn't configure the key
 age_configure() {
   local key_name="${1}"
-  local key_dir="${2:-${HOME}/.sops}"
+  local key_dir="${2:-${AGE_KEY_DIR_DEFAULT}}"
   local key="${key_dir}/${key_name}.txt"
   if [[ ! -f "${key}" ]]; then
     logInfo "Key not found: ${key}"
-    if ! mkdir -p "${key_dir}"; then
+    if ! file_ensure_dir "${key_dir}"; then
       logError "Failed to create directory for keys"
       return 1
     fi
@@ -179,12 +168,14 @@ EOF
       cat <<EOF
 ______________________________________
 EOF
-      chmod 600 "${key}"
+      if ! file_secure "${key}"; then
+        return 1
+      fi
       ;;
     *)
       key_file="${key_files[$((choice - 4))]}"
       logInfo "User chose to use existing age key: ${key_file}"
-      if cp "${key_file}" "${key}"; then
+      if file_copy "${key_file}" "${key}"; then
         logTrace "Key copied successfully"
       else
         logError "Failed to copy key"
@@ -196,10 +187,8 @@ EOF
   if ! env_add "SOPS_AGE_KEY_FILE" "${key}"; then
     logError "Failed to configure AGE key"
     return 1
-  fi
-
-  # Confirm we have a key
-  if [[ -f "${key}" ]]; then
+  elif [[ -f "${key}" ]]; then
+    # Confirm we have a key
     logInfo "AGE key configured"
     return 0
   else
@@ -208,10 +197,14 @@ EOF
   fi
 }
 
-# Constants
+#############################
+###### Local constants ######
+#############################
 
-AGE_VERSION="1.2.0"
-AGE_URL="https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"
+# Default shared constants when sourced without constants.sh
+if [[ -z "${SETUP_LOCAL_BIN+x}" ]]; then SETUP_LOCAL_BIN=""; fi
+if [[ -z "${SETUP_PREFIX_USER+x}" ]]; then SETUP_PREFIX_USER=""; fi
+if [[ -z "${SETUP_PREFIX_ROOT+x}" ]]; then SETUP_PREFIX_ROOT=""; fi
 
 ###########################
 ###### Startup logic ######
@@ -242,13 +235,23 @@ fi
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
   exit 1
-fi
-if ! source "${AG_ROOT}/src/git.sh"; then
+elif ! source "${AG_ROOT}/src/constants.sh"; then
+  logFatal "Failed to import constants.sh"
+elif ! source "${AG_ROOT}/src/git.sh"; then
   logFatal "Failed to import git.sh"
-fi
-if ! source "${AG_ROOT}/src/env.sh"; then
+elif ! source "${AG_ROOT}/src/env.sh"; then
   logFatal "Failed to import env.sh"
+elif ! source "${AG_ROOT}/src/file.sh"; then
+  logFatal "Failed to import file.sh"
+elif ! source "${AG_ROOT}/src/web.sh"; then
+  logFatal "Failed to import web.sh"
 fi
+
+# Constants (tool-specific)
+AGE_VERSION="1.2.0"
+AGE_URL="https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"
+AGE_KEY_DIR_DEFAULT="${HOME}/.sops"
+AGE_SYMLINK_DIR="${SETUP_LOCAL_BIN}"
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
