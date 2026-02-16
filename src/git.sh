@@ -123,16 +123,16 @@ EOF
 cur_user=$(git config user.name)
 cur_email=$(git config user.email)
 
-if [[ "${cur_user}" != "${GIT_SUBMODULE_USER}" ]] || [[ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]]; then
+if [ "${cur_user}" != "${GIT_SUBMODULE_USER}" ] || [ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]; then
   echo "Setting git user to: ${GIT_SUBMODULE_USER} <${GIT_SUBMODULE_EMAIL}> in submodule ${name}"
 fi
-if [[ "${cur_user}" != "${GIT_SUBMODULE_USER}" ]]; then
+if [ "${cur_user}" != "${GIT_SUBMODULE_USER}" ]; then
   if ! git config user.name "${GIT_SUBMODULE_USER}"; then
     echo "Failed to set git user in submodule ${name}"
     exit 1
   fi
 fi
-if [[ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]]; then
+if [ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]; then
   if ! git config user.email "${GIT_SUBMODULE_EMAIL}"; then
     echo "Failed to set git email in submodule ${name}"
     exit 1
@@ -140,7 +140,7 @@ if [[ "${cur_email}" != "${GIT_SUBMODULE_EMAIL}" ]]; then
 fi
 
 push_default=$(git config push.default)
-if [[ "${push_default}" != "simple" ]]; then
+if [ "${push_default}" != "simple" ]; then
   echo "Setting push.default to simple in submodule ${name}"
   if ! git config push.default simple; then
     echo "Failed to set push.default in submodule ${name}"
