@@ -18,6 +18,75 @@ SSH_INIT_FILE="ssh_init.sh"
 SSH_DIR="${HOME}/.ssh"
 SSH_USER_INPUT_TIMEOUT=65535
 
+ssh_server_install() {
+  if ! pkg_install openssh-server; then
+    logError "Failed to install openssh-server"
+    return 1
+  fi
+
+  local res
+  if ! res=$(sudo systemctl status ssh 2>&1); then
+    logError "Failed to check if ssh service is active: ${res}"
+    return 1
+  fi
+
+  # Enable the service if it's not active
+  if [[ "${res}" =~ *"inactive"* ]]; then
+    logInfo "Enabling ssh service"
+    if ! sudo systemctl enable --now ssh; then
+      logError "Failed to enable ssh service"
+      return 1
+    fi
+  else
+    logInfo "ssh service is already active"
+  fi
+
+  # Make sure the service is running
+  if ! res=$(sudo systemctl status ssh 2>&1); then
+    logError "Failed to check if ssh is running"
+    return 1
+  fi
+  if [[ "${res}" != *"active (running)"* ]]; then
+    logError "ssh service is not running"
+    if ! sudo systemctl start ssh; then
+      logError "Failed to start ssh service"
+      return 1
+    fi
+  else
+    logInfo "ssh service is already running"
+  fi
+
+  # Test again that SSH is running
+  if ! res=$(sudo systemctl status ssh 2>&1); then
+    logError "Failed to check if ssh service is running: ${res}"
+    return 1
+  fi
+  if [[ "${res}" != *"active (running)"* ]]; then
+    logError "ssh service is not running after starting it"
+    return 1
+  fi
+
+  logInfo "ssh service is running"
+
+  # Print config of the service
+  logInfo <<EOF
+SSH Service Configuration:
+$(cat /etc/ssh/sshd_config || true)
+EOF
+
+  # Make sure firewall allows SSH
+  if ! sudo ufw allow ssh; then
+    logError "Failed to allow ssh through the firewall"
+    return 1
+  fi
+  if ! sudo ufw enable; then
+    logError "Failed to enable firewall"
+    return 1
+  fi
+
+  return 0
+}
+
 # Test connection to SSH server, making sure credentials are good
 #
 # Parameters:
@@ -628,6 +697,8 @@ elif ! source "${SS_ROOT}/src/file.sh"; then
   logFatal "Failed to import file.sh"
 elif ! source "${SS_ROOT}/src/setup_git"; then
   logFatal "Failed to import setup_git"
+elif ! source "${SS_ROOT}/src/pkg.sh"; then
+  logFatal "Failed to import pkg.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
