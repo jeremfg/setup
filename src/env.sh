@@ -119,13 +119,14 @@ env_replace_in_place() {
 env_file() {
   local __return_env_file="${1}"
 
+
   local env_file
-  if [[ -f "${HOME}/.bashrc" ]]; then
-    env_file="${HOME}/.bashrc"
-  elif [[ -f "${HOME}/.bash_profile" ]]; then
+  if [[ -f "${HOME}/.bash_profile" ]]; then
     env_file="${HOME}/.bash_profile"
   elif [[ -f "${HOME}/.profile" ]]; then
     env_file="${HOME}/.profile"
+  elif [[ -f "${HOME}/.bashrc" ]]; then
+    env_file="${HOME}/.bashrc"
   else
     logWarn "No environment file found. Determine which one we should create..."
     local cur_os
@@ -133,7 +134,7 @@ env_file() {
       logError "Failed to identify the current OS"
       return 1
     elif [[ "${cur_os}" == "centos" ]]; then
-      env_file="${HOME}/.bashrc"
+      env_file="${HOME}/.bash_profile"
     elif [[ "${cur_os}" == "alpine" ]]; then
       env_file="${HOME}/.profile"
     else

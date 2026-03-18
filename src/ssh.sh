@@ -25,10 +25,7 @@ ssh_server_install() {
   fi
 
   local res
-  if ! res=$(sudo systemctl status ssh 2>&1); then
-    logError "Failed to check if ssh service is active: ${res}"
-    return 1
-  fi
+  res=$(sudo systemctl status ssh 2>&1)
 
   # Enable the service if it's not active
   if [[ "${res}" =~ *"inactive"* ]]; then
@@ -42,10 +39,7 @@ ssh_server_install() {
   fi
 
   # Make sure the service is running
-  if ! res=$(sudo systemctl status ssh 2>&1); then
-    logError "Failed to check if ssh is running"
-    return 1
-  fi
+  res=$(sudo systemctl status ssh 2>&1)
   if [[ "${res}" != *"active (running)"* ]]; then
     logError "ssh service is not running"
     if ! sudo systemctl start ssh; then

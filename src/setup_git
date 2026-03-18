@@ -549,7 +549,8 @@ sg_pkg_install_from() {
       sg_print "Package \"${cur_pkg}\" is not installed"
       to_install+=("${cur_pkg}")
     else
-      sg_print "Package \"${cur_pkg}\" is already installed"
+      sg_print "Package \"${cur_pkg}\" is already installed. Ignore and install anyway..."
+      to_install+=("${cur_pkg}")
     fi
   done
 
