@@ -11,12 +11,16 @@ fi
 
 # Install extrepo if missing
 extrepo_install() {
+  logDebug "Checking if extrepo is installed"
+
   if command -v extrepo &>/dev/null; then
     logInfo "extrepo is already installed"
     return 0
   elif ! pkg_install extrepo; then
     logError "Failed to install extrepo"
     return 1
+  else
+    logInfo "Successfully installed extrepo"
   fi
 
   return 0
@@ -28,12 +32,16 @@ extrepo_install() {
 #   $1: Repository name
 extrepo_enable() {
   local repo="$1"
+  logDebug "Enabling extrepo repo: ${repo}"
+  
   if [[ -z "${repo}" ]]; then
     logError "Missing repo name for extrepo_enable"
     return 1
   elif ! sudo extrepo enable "${repo}"; then
     logError "Failed to enable extrepo repo: ${repo}"
     return 1
+  else
+    logInfo "Successfully enabled extrepo repo: ${repo}"
   fi
 
   return 0
@@ -45,12 +53,16 @@ extrepo_enable() {
 #   $1: Repository name
 extrepo_update() {
   local repo="$1"
+  logDebug "Updating extrepo repo: ${repo}"
+
   if [[ -z "${repo}" ]]; then
     logError "Missing repo name for extrepo_update"
     return 1
   elif ! sudo extrepo update "${repo}"; then
     logError "Failed to update extrepo repo: ${repo}"
     return 1
+  else
+    logInfo "Successfully updated extrepo repo: ${repo}"
   fi
 
   return 0
@@ -62,6 +74,8 @@ extrepo_update() {
 #   $1: Repository name
 extrepo_ensure_repo() {
   local repo="$1"
+  logDebug "Ensuring extrepo repo is enabled and updated: ${repo}"
+
   if [[ -z "${repo}" ]]; then
     logError "Missing repo name for extrepo_ensure_repo"
     return 1
@@ -84,6 +98,7 @@ extrepo_ensure_repo() {
 extrepo_install_package() {
   local repo="$1"
   local package="$2"
+  logDebug "Installing package via extrepo: ${package} from repo: ${repo}"
 
   if [[ -z "${repo}" || -z "${package}" ]]; then
     logError "Missing repo/package for extrepo_install_package"

@@ -9,6 +9,23 @@ else
   return 0
 fi
 
+
+# Install a PPA repository
+# Parameters:
+#   $1: Repository name (e.g. "ppa:mozillateam/ppa")
+pkg_add_ppa() {
+  local repo="$1"
+  if [[ -z "${repo}" ]]; then
+    logError "Repository name not provided for pkg_add_ppa"
+    return 1
+  elif ! sudo add-apt-repository "${repo}" -y; then
+    logError "Failed to add PPA repository: ${repo}"
+    return 1
+  else
+    logInfo "Successfully added PPA repository: ${repo}"
+  fi
+}
+
 pkg_install_from() {
   sg_pkg_install_from "$@"
   return $?

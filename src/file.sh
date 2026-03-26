@@ -24,7 +24,7 @@ file_ensure_dir() {
     return 1
   elif [[ -d "${dir_path}" ]]; then
     return 0
-  elif ! mkdir -p "${dir_path}"; then
+  elif ! sudo mkdir -p "${dir_path}"; then
     logError "Failed to create directory: ${dir_path}"
     return 1
   fi
