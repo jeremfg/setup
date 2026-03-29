@@ -10,6 +10,7 @@ else
 fi
 
 dm_file="/etc/lightdm/lightdm.conf"
+dconf_file="/etc/dconf/db/local.d/00-htpc"
 
 ldm_fix() {
   logInfo "Fixing LightDM configuration for AD login"
@@ -79,6 +80,96 @@ ldm_set_setting() {
   else
     logDebug "Set LightDM setting: ${setting}=${value}"
     DM_RESTART=1
+  fi
+
+  return 0
+}
+
+ldm_no_sleep() {
+  logInfo "Configuring LightDM to prevent sleep on idle"
+
+  local settings=$(cat <<EOF
+[org/cinnamon/desktop/session]
+idle-delay=uint32 0
+
+[org/cinnamon/desktop/screensaver]
+lock-enabled=false
+idle-activation-enabled=false
+EOF
+)
+  local locks=$(cat <<EOF
+/org/cinnamon/desktop/session/idle-delay
+/org/cinnamon/desktop/screensaver/lock-enabled
+/org/cinnamon/desktop/screensaver/idle-activation-enabled
+EOF
+)
+
+  local cur_user=$(whoami)
+  if [[ -z "${cur_user}" ]]; then
+    logError "Failed to determine current user for LightDM dconf settings"
+    return 1
+  fi
+  local sess="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u ${cur_user})/bus"
+
+  if ! sudo -u ${cur_user} ${sess} dconf reset "/org/cinnamon/desktop/session/idle-delay"; then
+    logError "Failed to reset LightDM dconf setting: idle-delay"
+    return 1
+  elif ! sudo -u ${cur_user} ${sess} dconf reset "/org/cinnamon/desktop/screensaver/lock-enabled"; then
+    logError "Failed to reset LightDM dconf setting: lock-enabled"
+    return 1
+  elif ! sudo -u ${cur_user} ${sess} dconf reset "/org/cinnamon/desktop/screensaver/idle-activation-enabled"; then
+    logError "Failed to reset LightDM dconf setting: idle-activation-enabled"
+    return 1
+  elif ! sudo mkdir -p "$(dirname "${dconf_file}")"; then
+    logError "Failed to create directory for LightDM dconf settings: $(dirname "${dconf_file}")"
+    return 1
+  elif ! echo "${settings}" | sudo tee "${dconf_file}" >/dev/null; then
+    logError "Failed to write LightDM dconf settings"
+    return 1
+  elif ! sudo mkdir -p "/etc/dconf/db/local.d/locks"; then
+    logError "Failed to create directory for LightDM dconf locks"
+    return 1
+  elif ! echo "${locks}" | sudo tee "/etc/dconf/db/local.d/locks/htpc-locks" >/dev/null; then
+    logError "Failed to write LightDM dconf locks"
+    return 1
+  elif ! sudo dconf update; then
+    logError "Failed to update dconf database for LightDM settings"
+    return 1
+  elif ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.session idle-delay 0; then
+    logError "Failed to set LightDM dconf setting: idle-delay"
+    return 1
+  elif ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.screensaver lock-enabled false; then
+    logError "Failed to set LightDM dconf setting: lock-enabled"
+    return 1
+  elif ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false; then
+    logError "Failed to set LightDM dconf setting: idle-activation-enabled"
+    return 1
+  else
+    logDebug "Successfully updated LightDM dconf settings"
+  fi
+
+  # Read gsettings to make sure
+  local cur_value
+  if ! cur_value=$(gsettings get org.cinnamon.desktop.session idle-delay); then
+    logError "Failed to read back LightDM dconf setting: idle-delay"
+    return 1
+  elif [[ "${cur_value}" != "uint32 0" ]]; then
+    logError "LightDM dconf setting not applied correctly: idle-delay is ${cur_value} but expected uint32 0"
+    return 1
+  elif ! cur_value=$(gsettings get org.cinnamon.desktop.screensaver lock-enabled); then
+    logError "Failed to read back LightDM dconf setting: lock-enabled"
+    return 1
+  elif [[ "${cur_value}" != "false" ]]; then
+    logError "LightDM dconf setting not applied correctly: lock-enabled is ${cur_value} but expected false"
+    return 1
+  elif ! cur_value=$(gsettings get org.cinnamon.desktop.screensaver idle-activation-enabled); then
+    logError "Failed to read back LightDM dconf setting: idle-activation-enabled"
+    return 1
+  elif [[ "${cur_value}" != "false" ]]; then
+    logError "LightDM dconf setting not applied correctly: idle-activation-enabled is ${cur_value} but expected false"
+    return 1
+  else
+    logDebug "Successfully applied LightDM dconf settings"
   fi
 
   return 0

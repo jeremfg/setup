@@ -25,14 +25,77 @@ vlc_install() {
 vlc_add_blu_ray_support() {
   logInfo "Adding Blu-ray support to VLC media player"
 
-  if ! pkg_install "libbluray2" "libaacs0" "libbdplus0"; then
+  if ! pkg_install "libbluray2" "libaacs0" "libbdplus0" "libbluray-bdj"; then
     logError "Failed to install AACS and BD+ libraries for Blu-ray support"
     return 1
   elif ! vlc_update_keys; then
     logError "Failed to update VLC keys for Blu-ray support"
     return 1
+  elif ! vlc_add_java; then
+    logError "Failed to add Java support for BD-J in VLC media player"
+    return 1
   else
     logDebug "Successfully added Blu-ray support to VLC media player"
+  fi
+
+  return 0
+}
+
+
+vlc_add_java() {
+  logInfo "Adding Java support to VLC media player for Blu-ray support"
+
+  if ! command -v java >/dev/null 2>&1; then
+    logWarn "Java is not installed, needed for BD-J support in VLC media player"
+    if ! pkg_install "openjdk-17-jre"; then
+      logError "Failed to install OpenJDK Java runtime for BD-J support in VLC media player"
+      return 1
+    else
+      logDebug "Successfully installed OpenJDK Java runtime for BD-J support in VLC media player"
+    fi
+  fi
+
+  # Construct JAVA_HOME path
+  local java_home
+  local java_path
+  if ! java_path=$(command -v java); then
+    logError "Failed to find Java executable for BD-J support in VLC media player"
+    return 1
+  else
+    logDebug "Successfully added Java support to VLC media player for Blu-ray support"
+  fi
+  java_home=$(dirname "$(dirname "${java_path}")")
+
+  # Add JAVA_HOME to global environment
+  local file_ct=$(cat <<EOF
+# Installed by jeremfg/setup src/bluray.sh to add Java support for BD-J in VLC media player
+export JAVA_HOME="${java_home}"
+export PATH="\${JAVA_HOME}/bin:\${PATH}"
+EOF
+)
+  local env_file="/etc/profile.d/vlc-bluray-java.sh"
+  if ! echo "${file_ct}" | sudo tee "${env_file}" >/dev/null; then
+    logError "Failed to create environment variable file for Java support in VLC media player at ${env_file}"
+    return 1
+  elif ! sudo chmod 644 "${env_file}"; then
+    logError "Failed to set permissions for environment variable file for Java support in VLC media player at ${env_file}"
+    return 1
+  elif ! source "${env_file}"; then
+    logError "Failed to source environment variable file for Java support in VLC media player at ${env_file}"
+    return 1
+  else
+    logDebug "Successfully added Java support to VLC media player for Blu-ray support"
+  fi
+
+  # Confirm that JAVA_HOME is set correctly
+  if [[ -z "${JAVA_HOME}" ]]; then
+    logError "JAVA_HOME is not set after adding Java support to VLC media player for Blu-ray support"
+    return 1
+  elif [[ "${JAVA_HOME}" != "${java_home}" ]]; then
+    logError "JAVA_HOME is set to ${JAVA_HOME} but expected ${java_home}"
+    return 1
+  else
+    logDebug "JAVA_HOME is set correctly to ${JAVA_HOME} after adding Java support to VLC media player for Blu-ray support"
   fi
 
   return 0
@@ -111,7 +174,7 @@ fi
 # shellcheck disable=SC1091
 if ! source "${PREFIX}/lib/slf4.sh"; then
   echo "Failed to import slf4.sh"
-  exit
+  exit 1
 elif ! source "${BD_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
 elif ! source "${BD_ROOT}/src/file.sh"; then
