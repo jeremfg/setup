@@ -64,7 +64,19 @@ vlc_add_java() {
   else
     logDebug "Successfully added Java support to VLC media player for Blu-ray support"
   fi
+
+  # Check if we have a simlink. If so, resolve it
+  if [[ -L "${java_path}" ]]; then
+    if ! java_path=$(readlink -f "${java_path}"); then
+      logError "Failed to resolve Java executable path for BD-J support in VLC media player"
+      return 1
+    else
+      logDebug "Successfully resolved Java executable path for BD-J support in VLC media player"
+    fi
+  fi
+
   java_home=$(dirname "$(dirname "${java_path}")")
+  logInfo "Configuring JAVA_HOME to \"${java_home}\" for BD-J support in VLC media player"
 
   # Add JAVA_HOME to global environment
   local file_ct=$(cat <<EOF

@@ -88,6 +88,8 @@ ldm_set_setting() {
 ldm_no_sleep() {
   logInfo "Configuring LightDM to prevent sleep on idle"
 
+  ldm_print_user_config;
+
   local settings=$(cat <<EOF
 [org/cinnamon/desktop/session]
 idle-delay=uint32 0
@@ -135,7 +137,13 @@ EOF
   elif ! sudo dconf update; then
     logError "Failed to update dconf database for LightDM settings"
     return 1
-  elif ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.session idle-delay 0; then
+  else
+    logDebug "Successfully applied LightDM dconf settings and locks globally"
+    ldm_print_user_config;
+  fi
+
+  # Now apply the config locally
+  if ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.session idle-delay 0; then
     logError "Failed to set LightDM dconf setting: idle-delay"
     return 1
   elif ! sudo -u ${cur_user} ${sess} gsettings set org.cinnamon.desktop.screensaver lock-enabled false; then
@@ -145,7 +153,8 @@ EOF
     logError "Failed to set LightDM dconf setting: idle-activation-enabled"
     return 1
   else
-    logDebug "Successfully updated LightDM dconf settings"
+    logDebug "Successfully updated LightDM dconf local settings"
+    ldm_print_user_config;
   fi
 
   # Read gsettings to make sure
@@ -170,9 +179,34 @@ EOF
     return 1
   else
     logDebug "Successfully applied LightDM dconf settings"
+    ldm_print_user_config
   fi
 
   return 0
+}
+
+ldm_print_user_config() {
+  local cfg1
+  local cfg2
+  locak cfg3
+
+  if ! cfg1=$(gsettings get org.cinnamon.desktop.session idle-delay); then
+    logError "Failed to read LightDM dconf setting: idle-delay"
+    return 1
+  elif ! cfg2=$(gsettings get org.cinnamon.desktop.screensaver lock-enabled); then
+    logError "Failed to read LightDM dconf setting: lock-enabled"
+    return 1
+  elif ! cfg3=$(gsettings get org.cinnamon.desktop.screensaver idle-activation-enabled); then
+    logError "Failed to read LightDM dconf setting: idle-activation-enabled"
+    return 1
+  else
+    logInfo <<EOF
+Current LightDM user settings:
+  idle-delay: ${cfg1}
+  lock-enabled: ${cfg2}
+  idle-activation-enabled: ${cfg3}
+EOF
+  fi
 }
 
 DM_RESTART=0

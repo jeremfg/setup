@@ -6,6 +6,7 @@
 
 rm_inst_dir="/opt/RemoteMouse"
 rm_exec="${rm_inst_dir}/RemoteMouse"
+rm_symlink="/usr/local/bin/remotemouse"
 rm_service_file="/etc/systemd/system/remotemouse.service"
 
 rm_install_ubuntu_cinammon() {
@@ -32,7 +33,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${rm_exec}
+ExecStart=${rm_symlink}
 Restart=always
 
 # Run as root so it works at logon screen
@@ -124,6 +125,42 @@ _rm_install_rm_ubuntu() {
     logInfo "Successfully installed Remote Mouse server at ${rm_exec}"
   else
     logDebug "Remote Mouse server is already installed at ${rm_exec}, skipping installation"
+  fi
+
+  # Make sure the symlink is configured
+  if [[ -L "${rm_symlink}" ]]; then
+    local target
+    if ! target=$(readlink -f "${rm_symlink}"); then
+      logError "Failed to read existing symlink for Remote Mouse server at ${rm_symlink}"
+      return 1
+    elif [[ "${target}" != "${rm_exec}" ]]; then
+      logError "Existing symlink for Remote Mouse server at ${rm_symlink} points to ${target} instead of ${rm_exec}"
+      return 1
+    else
+      logDebug "Symlink for Remote Mouse server at ${rm_symlink} is already correctly configured, skipping"
+    fi
+  elif [[ -e "${rm_symlink}" ]]; then
+    logError "Path for Remote Mouse server symlink at ${rm_symlink} exists but is not a symlink"
+    return 1
+  elif ! sudo ln -s "${rm_exec}" "${rm_symlink}"; then
+    logError "Failed to create symlink for Remote Mouse server from ${rm_symlink} to ${rm_exec}"
+    return 1
+  else
+    logInfo "Successfully created symlink for Remote Mouse server from ${rm_symlink} to ${rm_exec}"
+  fi
+
+  # Configure firewall to allow Remote Mouse server traffic
+  if ! sudo ufw allow 1978/tcp; then
+    logError "Failed to allow Remote Mouse server traffic through firewall on port 1978/tcp"
+    return 1
+  elif ! sudo ufw allow 1978/udp; then
+    logError "Failed to allow Remote Mouse server traffic through firewall on port 1978/udp"
+    return 1
+  elif ! sudo ufw reload; then
+    logError "Failed to reload firewall after allowing Remote Mouse server traffic through firewall on port 1978"
+    return 1
+  else
+    logDebug "Successfully allowed Remote Mouse server traffic through firewall on port 1978/tcp and 1978/udp"
   fi
 
   return 0
