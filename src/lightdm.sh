@@ -74,10 +74,13 @@ ldm_set_setting() {
   fi
 
   # Update the setting, and track if we need to restart LightDM
-  if ! sudo sed -i "s/^[#]?\s*\(${setting}=\).*/\1${value}/" "${dm_file}"; then
+  if ! sudo sed -E -i "s/^#?[[:space:]]*(${setting}=).*/\1${value}/" "${dm_file}"; then
     logError "Failed to set LightDM setting: ${setting}"
     return 1
-  else
+  elif ! grep -E "^${setting}=${value}$" "${dm_file}" >/dev/null; then
+    logError "LightDM setting update verification failed: ${setting}=${value}"
+    return 1
+  else                                                      
     logDebug "Set LightDM setting: ${setting}=${value}"
     DM_RESTART=1
   fi

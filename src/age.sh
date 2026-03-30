@@ -35,6 +35,12 @@ age_install() {
     fi
   fi
 
+  # Make sure bindir is in the PATH
+  if ! source "${HOME}/.profile"; then
+    logError "Failed to source ~/.profile to update PATH"
+    return 1
+  fi
+
   local url location
   url="${AGE_URL}"
 
@@ -64,6 +70,8 @@ age_install() {
       fi
     fi
   done
+
+
 
   # Confirm age is working
   if ! command -v age &>/dev/null; then

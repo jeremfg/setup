@@ -115,7 +115,7 @@ EOF
 
 vlc_update_keys() {
   logInfo "Updating KEYSDB.cfg for VLC Blu-ray support"
-  local keysdb_path="/etc/xdg/aacs/KEYDB.cfg"
+  local keysdb_path="/usr/share/aacs/KEYDB.cfg"
   local keysdb_url="https://vlc-bluray.whoknowsmy.name/files/KEYDB.cfg"
 
   if ! command -v wget >/dev/null 2>&1; then
@@ -126,6 +126,9 @@ vlc_update_keys() {
     return 1
   elif ! sudo wget -qO "${keysdb_path}" "${keysdb_url}"; then
     logError "Failed to download KEYSDB.cfg from ${keysdb_url}"
+    return 1
+  elif ! sudo sed -i '1s/^\xEF\xBB\xBF//' "${keysdb_path}"; then
+    logError "Failed to remove BOM from KEYSDB.cfg at ${keysdb_path}"
     return 1
   elif ! sudo chmod 644 "${keysdb_path}"; then
     logError "Failed to set permissions for KEYSDB.cfg at ${keysdb_path}"
