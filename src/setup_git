@@ -549,8 +549,7 @@ sg_pkg_install_from() {
       sg_print "Package \"${cur_pkg}\" is not installed"
       to_install+=("${cur_pkg}")
     else
-      sg_print "Package \"${cur_pkg}\" is already installed. Ignore and install anyway..."
-      to_install+=("${cur_pkg}")
+      sg_print "Package \"${cur_pkg}\" is already installed"
     fi
   done
 
@@ -629,6 +628,11 @@ sg_pkg_is_installed_debian() {
   local repo="$1"
   local cur_pkg="$2"
   local res=2
+
+  # Special case for Git, always assume it's not installed.
+  if [[ "${cur_pkg}" == "git" ]]; then
+    return 2
+  else
 
   if dpkg-query -W -f='${Status}' "${cur_pkg}" 2>/dev/null | grep -q "install ok installed"; then
     res=0
