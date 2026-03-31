@@ -632,7 +632,7 @@ sg_pkg_is_installed_debian() {
   # Special case for Git, always assume it's not installed.
   if [[ "${cur_pkg}" == "git" ]]; then
     return 2
-  else
+  fi
 
   if dpkg-query -W -f='${Status}' "${cur_pkg}" 2>/dev/null | grep -q "install ok installed"; then
     res=0
