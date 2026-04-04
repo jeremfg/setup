@@ -29,19 +29,24 @@ _rm_install_srv_ubuntu_cinammon() {
   local service_content=$(cat <<EOF
 [Unit]
 Description=Remote Mouse Server
-After=network.target
+After=lightdm.service
 
 [Service]
 Type=simple
+User=root
+Group=root
+
+# Execute
 ExecStart=${rm_symlink}
 Restart=always
 
-# Run as root so it works at logon screen
-User=root
+# Ensure lightdm has fully started
+ExecStartPre=/bin/sleep 2
 
 # Allow GUI interaction
 Environment=DISPLAY=:0
-Environment=XAUTHORITY=/var/lib/lightdm/.Xauthority
+Environment=XAUTHORITY=/var/run/lightdm/root/:0
+# Environment=XDG_RUNTIME_DIR=/run/user/$(id -u lightdm)
 
 [Install]
 WantedBy=multi-user.target
@@ -57,8 +62,8 @@ EOF
   elif ! sudo systemctl enable remotemouse.service; then
     logError "Failed to enable Remote Mouse systemd service"
     return 1
-  elif ! sudo systemctl start remotemouse.service; then
-    logError "Failed to start Remote Mouse systemd service"
+  elif ! sudo systemctl restart remotemouse.service; then
+    logError "Failed to restart Remote Mouse systemd service"
     return 1
   else
     logDebug "Successfully set up Remote Mouse systemd service"

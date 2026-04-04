@@ -203,6 +203,15 @@ ad_end_service() {
   return 0
 }
 
+ad_support_automount() {
+  if ! pkg_install "ipcalc" "cifs-utils" "krb5-user"; then
+    logError "Failed to install ipcalc for AD automount support"
+    return 1
+  else
+    logDebug "Successfully installed ipcalc for AD automount support"
+  fi
+}
+
 SSSD_RESTART=0
 
 ###########################
