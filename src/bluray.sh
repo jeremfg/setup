@@ -34,6 +34,9 @@ vlc_add_blu_ray_support() {
   elif ! vlc_add_java; then
     logError "Failed to add Java support for BD-J in VLC media player"
     return 1
+  elif ! xdg_optical_autorun; then
+    logError "Failed to install optical media autorun script for VLC media player"
+    return 1
   else
     logDebug "Successfully added Blu-ray support to VLC media player"
   fi
@@ -194,6 +197,8 @@ elif ! source "${BD_ROOT}/src/pkg.sh"; then
   logFatal "Failed to import pkg.sh"
 elif ! source "${BD_ROOT}/src/file.sh"; then
   logFatal "Failed to import file.sh"
+elif ! source "${BD_ROOT}/src/xdg.sh"; then
+  logFatal "Failed to import xdg.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

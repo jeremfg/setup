@@ -9,6 +9,25 @@ else
   return 0
 fi
 
+# Make sure we support edition of INI files
+file_ensure_ini() {
+  if ! command -v crudini >/dev/null 2>&1; then
+    logWarn "crudini is required for INI file operations but is not installed"
+    # Install crudini
+    if ! pkg_install "crudini"; then
+      logError "Failed to install crudini for INI file operations"
+      return 1
+    elif ! command -v crudini >/dev/null 2>&1; then
+      logError "crudini is still not available after installation"
+      return 1
+    else
+      logInfo "Successfully installed crudini for INI file operations"
+    fi
+  fi
+
+  return 0
+}
+
 # Ensure a directory exists, creating it if necessary
 #
 # Parameters:
