@@ -84,7 +84,7 @@ po_main() {
       # Check if it's a video Blu-ray by looking for the presence of the BDMV folder
       if [ -d "$mnt_point/BDMV" ]; then
         log_info "Blu-ray in drive $dev_path contains BDMV folder. Assuming it's a video Blu-ray."
-        # exec vlc "bluray://$dev_path"
+        exec vlc "bluray://$dev_path"
       else
         log_info "Blu-ray in drive $dev_path does not contain BDMV folder. Assuming it's a data Blu-ray."
       fi
