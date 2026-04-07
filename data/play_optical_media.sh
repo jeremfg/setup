@@ -84,7 +84,7 @@ po_main() {
       # Check if it's a video Blu-ray by looking for the presence of the BDMV folder
       if [ -d "$mnt_point/BDMV" ]; then
         log_info "Blu-ray in drive $dev_path contains BDMV folder. Assuming it's a video Blu-ray."
-        exec vlc "bluray://$dev_path"
+        exec vlc "bluray://$dev_path" &
       else
         log_info "Blu-ray in drive $dev_path does not contain BDMV folder. Assuming it's a data Blu-ray."
       fi
@@ -95,7 +95,7 @@ po_main() {
         # Check for the presence of VIDEO_TS to confirm it's a video DVD
         if [ -d "$mnt_point/VIDEO_TS" ]; then
           log_info "DVD in drive $dev_path contains VIDEO_TS folder. Assuming it's a video DVD."
-          exec vlc "dvd://$dev_path"
+          exec vlc "dvd://$dev_path" &
         else
           log_info "DVD in drive $dev_path does not contain VIDEO_TS folder. Assuming it's a data DVD."
         fi
@@ -109,7 +109,7 @@ po_main() {
             track_count=$(echo "$dev_info" | grep "ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=" | cut -d'=' -f2)
             if [ "$track_count" -gt 2 ]; then
               log_info "CD in drive $dev_path has $track_count audio tracks. Assuming it's an audio CD."
-              exec vlc "cdda://$dev_path"
+              exec vlc "cdda://$dev_path" &
             else
               log_info "CD in drive $dev_path has less than 3 ($track_count) audio tracks. Assuming it's a data CD."
             fi
