@@ -35,12 +35,32 @@ po_main() {
     else
       log_info "Resolved mount point $mnt_point to device: $dev_path"
     fi
+
+    # If we resolved to gvfsd-fuse, we should look for a host in the path instead
+    if echo "$dev_path" | grep -q "gvfsd-fuse"; then
+      log_info "Resolved device $dev_path is a gvfsd-fuse path. Attempting to resolve host device instead."
+      # Example: /run/user/250201111/gvfs/cdda:host=sr0
+      if echo "$mnt_point" | grep -q ".*host="; then
+        host_dev=$(echo "$mnt_point" | sed -n 's/.*host=\([^\/]*\).*/\1/p')
+        if [ -n "$host_dev" ]; then
+          dev_path="/dev/$host_dev"
+          log_info "Resolved host device from gvfs path: $dev_path"
+        else
+          log_error "Failed to parse host device from gvfs mount point $mnt_point"
+          return 1
+        fi
+      else
+        log_error "Mount point $mnt_point does not appear to be a gvfs path. Cannot resolve host device."
+        return 1
+      fi
+    fi
   else
     log_info "No open target argument received. Locate a drive device to open"
     # Get all mounted rom devices
-    rom_devices=$(lsblk -o NAME,TYPE,MOUNTPOINT | grep "rom" | awk '$3 != "" {print "/dev/" $1}')
+    rom_devices=$(lsblk -o NAME,TYPE,MOUNTPOINT | awk '$2 == "rom" {print "/dev/" $1}')
     found_media=0
     for dev in $rom_devices; do
+      log_info "Checking device $dev for media presence"
       if udevadm info --query=property --name="$dev" 2>/dev/null | grep -q "ID_CDROM_MEDIA=1"; then
         dev_path="$dev"
         found_media=1
@@ -58,8 +78,7 @@ po_main() {
     # Find mount point for that device
     mnt_point=$(findmnt -no TARGET "$dev_path" 2>/dev/null)
     if [ -z "$mnt_point" ]; then
-      log_error "Failed to find mount point for device $dev_path"
-      return 1
+      log_warn "Failed to find mount point for device $dev_path"
     else
       log_info "Found mount point $mnt_point for device $dev_path"
     fi
