@@ -84,7 +84,7 @@ xdg_install_apps() {
   local bd_hdl=$(cat <<EOF
 [Desktop Entry]
 Name=Play Blu-ray (VLC)
-Exec=${XDG_OPTICAL_AUTORUN_DEST} %d
+Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
 Type=Application
 MimeType=x-content/video-bluray;
 NoDisplay=true
@@ -93,7 +93,7 @@ EOF
   local dvd_hdl=$(cat <<EOF
 [Desktop Entry]
 Name=Play DVD (VLC)
-Exec=${XDG_OPTICAL_AUTORUN_DEST} %d
+Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
 Type=Application
 MimeType=x-content/video-dvd;
 NoDisplay=true
@@ -102,7 +102,7 @@ EOF
   local cd_hdl=$(cat <<EOF
 [Desktop Entry]
 Name=Play Audio CD (VLC)
-Exec=${XDG_OPTICAL_AUTORUN_DEST} %d
+Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
 Type=Application
 MimeType=x-content/audio-cdda;
 NoDisplay=true
