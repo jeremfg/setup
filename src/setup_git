@@ -539,7 +539,7 @@ sg_pkg_install_from() {
   local res
   # Check which packages need to be installed
   for cur_pkg in "$@"; do
-    sg_print "Checking if package \"${cur_pkg}\" is alread installed"
+    sg_print "Checking if package \"${cur_pkg}\" is alread installed: ${fct_is_installed}"
     eval "${fct_is_installed}" "\"${repo}\"" "\"${cur_pkg}\""
     res=$?
     if [[ ${res} -eq 1 ]]; then
