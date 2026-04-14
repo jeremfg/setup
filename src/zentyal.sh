@@ -11,20 +11,25 @@ fi
 
 # Configure replication with PDC
 # Parameters:
-#   $1[in]: The PDC FQDN
 #   $2[in]: The PDC username
 #   $3[in]: The PDC password
-#   $4[in]: The PDC name
-#   $5[in]: The BDC name
 zl_configure_replication() {
-  local __pdc_fqdn="${1}"
-  local __pdc_user="${2}"
-  local __pdc_pwd="${3}"
-  local __pdc_name="${4}"
-  local __bdc_name="${5}"
+  local __pdc_user="${1}"
+  local __pdc_pwd="${2}"
+
+  local pdc_netbios bdc_netbios pdc_fqdn
+  if ! ad_netbios_name bdc_netbios; then
+    logError "Failed to retrieve BDC NetBIOS name"
+    return 1
+  elif ! zl_netbios_pdc pdc_netbios; then
+    logError "Failed to retrieve PDC NetBIOS name"
+    return 1
+  elif ! zl_fqdn pdc_fqdn "${pdc_netbios}"; then
+    logError "Failed to retrieve PDC FQDN"
+    return 1
+  fi
 
   logInfo "Establishing authentication with PDC"
-
   # Generate an identify for SSH
   local zl_local_key
   if ! ssh_identity_create zl_local_key; then
@@ -32,12 +37,12 @@ zl_configure_replication() {
     return 1
   fi
   # Get authorized on the PDC
-  if ! ssh_identity_authorize "${zl_local_key}" "${__pdc_user}" "${__pdc_pwd}" "${__pdc_fqdn}" "22"; then
+  if ! ssh_identity_authorize "${zl_local_key}" "${__pdc_user}" "${__pdc_pwd}" "${pdc_fqdn}" "22"; then
     logError "Failed to authorize SSH key on PDC"
     return 1
   fi
 
-  if ! _sysvol_setup "${__pdc_fqdn}" "${__pdc_name}" "${__bdc_name}" "${__pdc_user}"; then
+  if ! _sysvol_setup "${pdc_fqdn}" "${pdc_netbios}" "${bdc_netbios}" "${__pdc_user}"; then
     logError "Failed to configure LDAP replication"
     return 1
   elif ! _sysvol_cron; then
@@ -261,6 +266,60 @@ ZL_REPLICATION_STEP=$(cat <<'EOF'
 EOF
 )
 
+# Retrieve the PDC's NetBIOS name
+# Parameters:
+#   $1[out]: The NetBIOS name
+zl_netbios_pdc() {
+  local __result_var="${1}"
+
+  local output
+  # Fetch FSMO role data
+  # Extract the line with the PDC Emulator
+  # Extract the CN value (NetBIOS name)
+  if ! output=$(sudo samba-tool fsmo show \
+    | awk -F': ' '/PdcEmulationMasterRole owner/ {print $2}' \
+    | sed -n 's/.*CN=\([^,]*\),CN=Servers.*/\1/p' \
+  ); then
+    logError "Failed to retrieve PDC NetBIOS name"
+    return 1
+  elif [[ -z "${output}" ]]; then
+    logError "PDC NetBIOS name is empty"
+    return 1
+  else
+    logInfo "PDC NetBIOS name retrieved successfully: ${output}"
+    eval "${__result_var}='${output}'"
+  fi
+}
+
+# Obtain the FQDN for a DC's NetBIOS name
+# Parameters:
+#   $1[out]: The FQDN
+#   $2[in]: The NetBIOS name
+zl_fqdn() {
+  local __result_var="${1}"
+  local __netbios_name="${2}"
+
+  local fqdn
+  # Fetch Samba info for the given machine
+  # Extract the DC name
+  # Cleanup the value
+  if ! fqdn=$(sudo samba-tool domain info "${__netbios_name}" \
+    | awk -F': ' '/DC name/ {print $2}' \
+    | tail -n 1 | tr -d '[:space:]' \
+  2>/dev/null); then
+    logError "Failed to retrieve FQDN for ${__netbios_name}"
+    return 1
+  elif [[ -z "${fqdn}" ]]; then
+    logError "FQDN for ${__netbios_name} is empty"
+    return 1
+  else
+    logInfo "FQDN for ${__netbios_name} retrieved successfully: ${fqdn}"
+    eval "${__result_var}='${fqdn}'"
+  fi
+
+  return 0
+}
+
 # Global constants
 ZL_REPL_LOG="/var/log/zl_replication.log"
 ZL_REPL_SCRIPT="/usr/local/bin/zl_replication.sh"
@@ -299,6 +358,8 @@ elif ! source "${ZL_ROOT}/src/constants.sh"; then
   logFatal "Failed to import constants.sh"
 elif ! source "${ZL_ROOT}/src/ssh.sh"; then
   logFatal "Failed to import ssh.sh"
+elif ! source "${ZL_ROOT}/src/ad.sh"; then
+  logFatal "Failed to import ad.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then

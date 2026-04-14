@@ -212,6 +212,29 @@ ad_support_automount() {
   fi
 }
 
+# Retrieve the local NetBIOS name
+# Parameters:
+#   $1[out]: The NetBIOS name
+ad_netbios_name() {
+  local __result_var="${1}"
+
+  local output
+  # Retrieve the NetBIOS name using testparm, suppressing errors and taking the last line
+  if ! output=$(testparm -s --parameter-name="netbios name" 2>/dev/null | tail -n 1 | tr -d '[:space:]'); then
+    logError "Failed to retrieve NetBIOS name using testparm"
+    return 1
+  elif [[ -z "${output}" ]]; then
+    logError "NetBIOS name is empty"
+    return 1
+  fi
+
+  # Return the result in the provided variable name
+  eval "${__result_var}='${output}'"
+  logInfo "Successfully retrieved NetBIOS name: ${output}"
+
+  return 0
+}
+
 SSSD_RESTART=0
 
 ###########################
