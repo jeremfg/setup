@@ -119,6 +119,19 @@ _sysvol_setup() {
     return 1
   fi
 
+  # Make sure we are able to version the replication script
+  local cur_version
+  if ! command -v semver >/dev/null 2>&1; then
+    logError "semver is not installed"
+    return 1
+  elif ! cur_version=$(cd "${ZL_ROOT}" && semver); then
+    logError "Failed to retrieve current version for replication script"
+    return 1
+  elif [[ -z "${cur_version}" ]]; then
+    logError "Current version for replication script is empty"
+    return 1
+  fi
+
   # Prepare replication file
   local cur_obj repl_code cur_step
   local replication_steps=""
@@ -139,6 +152,7 @@ _sysvol_setup() {
   repl_code="${repl_code//@PDC_USER@/${__spdc_user}}"
   repl_code="${repl_code//@PDC_NAME@/${__spdc_name}}"
   repl_code="${repl_code//@BDC_NAME@/${__sbdc_name}}"
+  repl_code="${repl_code//@VERSION@/${cur_version}}"
   repl_code="${repl_code//@SSH_IDENTITY_KEY@/${SSH_IDENTITY_KEY}}"
   repl_code="${repl_code//@REPLICATION_STEPS@/${replication_steps}}"
 
@@ -170,12 +184,82 @@ PDC_NAME="@PDC_NAME@"
 BDC_NAME="@BDC_NAME@"
 PDC_USER="@PDC_USER@"
 SYSVOL_PATH="/var/lib/samba/sysvol/"
+VERSION="@VERSION@"
 
 perform_replication() {
-  if ! object_replication; then
-    logger -t "${LOGGER_NAME}" "Object replication failed"
+  short="hvdf"
+  long="help,version,data,full"
+
+  # Parse command
+  if ! parsed=$(getopt --options "${short}" --longoptions "${long}" --name "$(basename "$0")" -- "$@"); then
+    logger -t "${LOGGER_NAME}" "Failed to parse arguments"
     return 1
-  elif ! sysvol_replication; then
+  fi
+
+  # Default values
+  data_replication=false
+  replication_args=""
+
+  # Handle Options
+  eval set -- "${parsed}"
+  while true; do
+    case "$1" in
+      -h|--help)
+        logger -t "${LOGGER_NAME}" "Help requested"
+        echo "$(basename "$0") - Replication script for Zentyal servers"
+        echo "By default, this script only performs SYSVOL replication,"
+        echo "relying on Samba's internal replication for the data partitions."
+        echo ""
+        echo "Usage: $(basename "$0") [options]"
+        echo "Options:"
+        echo "  -h, --help      Show this help message and exit"
+        echo "  -v, --version   Show version information and exit"
+        echo "  -d, --data      Perform data replication as well"
+        echo "  -f, --full      Perform full replication of the data instead of incremental"
+        return 0
+        ;;
+      -v|--version)
+        logger -t "${LOGGER_NAME}" "Version requested"
+        echo "${VERSION}"
+        return 0
+        ;;
+      -d|--data)
+        logger -t "${LOGGER_NAME}" "Data replication requested"
+        data_replication=true
+        shift
+        ;;
+      -f|--full)
+        logger -t "${LOGGER_NAME}" "Full replication requested"
+        replication_args="--full-sync"
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        logger -t "${LOGGER_NAME}" "Invalid option: $1"
+        echo "ERROR: Invalid option: $1. See --help for usage information."
+        return 1
+        ;;
+    esac
+  done
+
+  # Handle positional arguments
+  if [ "$#" -ne 0 ]; then
+    logger -t "${LOGGER_NAME}" "Unexpected positional arguments: $*"
+    echo "ERROR: Unexpected positional arguments: $*. See --help for usage information."
+    return 1
+  fi
+
+  if [ "${data_replication}" = true ]; then
+    if ! object_replication; then
+      logger -t "${LOGGER_NAME}" "Object replication failed"
+      return 1
+    fi
+  fi
+
+  if ! sysvol_replication; then
     logger -t "${LOGGER_NAME}" "SYSVOL replication failed"
     return 1
   fi
@@ -236,7 +320,7 @@ replicate_object() {
     logger -t "${LOGGER_NAME}" "Forcing replication for ${_object}"
   fi
 
-  if ! sudo samba-tool drs replicate "${_dst_dc}" "${_src_dc}" "${_object}" --full-sync >/dev/null 2>&1; then
+  if ! sudo samba-tool drs replicate "${_dst_dc}" "${_src_dc}" "${_object}" ${replication_args} >/dev/null 2>&1; then
     logger -t "${LOGGER_NAME}" "Failed to force replication for ${_object}"
     return 1
   else
@@ -246,7 +330,7 @@ replicate_object() {
 }
 
 logger -t "${LOGGER_NAME}" "Starting replication script"
-if ! perform_replication; then
+if ! perform_replication "${@}"; then
   logger -t "${LOGGER_NAME}" "Replication failed"
   exit 1
 else
