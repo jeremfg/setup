@@ -329,7 +329,7 @@ replicate_object() {
   fi
 }
 
-logger -t "${LOGGER_NAME}" "Starting replication script"
+logger -t "${LOGGER_NAME}" "Starting replication script. Version: ${VERSION}"
 if ! perform_replication "${@}"; then
   logger -t "${LOGGER_NAME}" "Replication failed"
   exit 1
