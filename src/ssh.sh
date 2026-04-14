@@ -10,14 +10,6 @@ else
   return 0
 fi
 
-############################################
-## Configuration
-############################################
-
-SSH_INIT_FILE="ssh_init.sh"
-SSH_DIR="${HOME}/.ssh"
-SSH_USER_INPUT_TIMEOUT=65535
-
 ssh_server_install() {
   if ! pkg_install openssh-server; then
     logError "Failed to install openssh-server"
@@ -410,14 +402,14 @@ ssh_paste_key() {
   return $?
 }
 
-# Create an identity remotely
+# Create an identity remotely or localy
 #
 # Parameters:
 #   $1[out]: The public key created
-#   $2[in]:  The username
-#   $3[in]:  The password
-#   $4[in]:  The host
-#   $5[in]:  The port
+#   $2[in]:  The username (Omit if creating locally)
+#   $3[in]:  The password (Omit if creating locally)
+#   $4[in]:  The host (Omit if creating locally)
+#   $5[in]:  The port (Omit if creating locally)
 # Returns:
 #   0: If the identity was created
 #   1: If an error occured
@@ -431,35 +423,63 @@ ssh_identity_create() {
   local _id_cmd _id_res _id_code
   # Try to read the public key if it exists
   # shellcheck disable=SC2088
-  _id_cmd=(test -e "~/.ssh/id_ed25519.pub")
-  ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
-  _id_code=$?
+  _id_cmd=(test -e "${SSH_IDENTITY_PUB_KEY}")
+  if [[ -z ${__ssh_host} ]]; then
+    _id_res=$("${_id_cmd[@]}" 2>&1)
+    _id_code=$?
+  else
+    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+    _id_code=$?
+    if [[ ${_id_code} -eq 201 ]]; then
+      _id_code=1 # No file, but connection was successful
+    elif [[ ${_id_code} -eq 1 ]]; then
+      logError "Failed to check for existing identity: ${_id_res}"
+      return 1
+    fi
+  fi
   if [[ ${_id_code} -eq 0 ]]; then
     logInfo "Indentity already exists"
     # shellcheck disable=SC2088
-    _id_cmd=(cat "~/.ssh/id_ed25519.pub")
-    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
-    _id_code=$?
+    _id_cmd=(cat "${SSH_IDENTITY_PUB_KEY}")
+    if [[ -z ${__ssh_host} ]]; then
+      _id_res=$("${_id_cmd[@]}" 2>&1)
+      _id_code=$?
+    else
+      ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+      _id_code=$?
+    fi
     if [[ ${_id_code} -ne 0 ]]; then
       logError "Failed to read public key"
       return 1
     fi
     eval "${__ssh_pub_key}='${_id_res}'"
     return 0
-  elif [[ ${_id_code} -eq 201 ]]; then
+  elif [[ ${_id_code} -eq 1 ]]; then
     logInfo "Creating identity"
     # shellcheck disable=SC2088
-    _id_cmd=(ssh-keygen -t ed25519 -f "~/.ssh/id_ed25519" -N "\"\"")
-    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
-    _id_code=$?
+    _id_cmd=(ssh-keygen -t ed25519 -f "${SSH_IDENTITY_KEY}" -N)
+    if [[ -z ${__ssh_host} ]]; then
+      _id_cmd+=("")
+      _id_res=$("${_id_cmd[@]}" 2>&1)
+      _id_code=$?
+    else
+      _id_cmd+=("\"\"")
+      ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+      _id_code=$?
+    fi
     if [[ ${_id_code} -ne 0 ]]; then
-      logError "Failed to create identity"
+      logError "Failed to create identity: ${_id_code}"
       return 1
     fi
     # shellcheck disable=SC2088
-    _id_cmd=(cat "~/.ssh/id_ed25519.pub")
-    ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
-    _id_code=$?
+    _id_cmd=(cat "${SSH_IDENTITY_PUB_KEY}")
+    if [[ -z ${__ssh_host} ]]; then
+      _id_res=$("${_id_cmd[@]}" 2>&1)
+      _id_code=$?
+    else
+      ssh_exec _id_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_id_cmd[@]}"
+      _id_code=$?
+    fi
     if [[ ${_id_code} -ne 0 ]]; then
       logError "Failed to read public key"
       return 1
@@ -467,7 +487,7 @@ ssh_identity_create() {
     eval "${__ssh_pub_key}='${_id_res}'"
     return 0
   else
-    logError "Failed to check for identity"
+    logError "Failed to check for identity: ${_id_code}"
     return 1
   fi
 }
@@ -652,7 +672,12 @@ EOF
   return "${_pass_code}"
 }
 
-
+# Global variables
+SSH_INIT_FILE="ssh_init.sh"
+SSH_DIR="${HOME}/.ssh"
+SSH_USER_INPUT_TIMEOUT=65535
+SSH_IDENTITY_KEY="${SSH_DIR}/id_ed25519"
+SSH_IDENTITY_PUB_KEY="${SSH_IDENTITY_KEY}.pub"
 
 ###########################
 ###### Startup logic ######
