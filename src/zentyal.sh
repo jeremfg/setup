@@ -62,7 +62,7 @@ zl_configure_replication() {
 
 _sysvol_cron() {
   local job=$(cat <<EOF
-0 * * * * root ${ZL_REPL_SCRIPT} >> /var/log/zl_replication.log 2>&1
+0 * * * * root ${ZL_REPL_SCRIPT} >> ${ZL_REPL_LOG} 2>&1
 EOF
 )
   if ! echo "${job}" | sudo tee "${ZL_CRON_DEF}" >/dev/null; then
@@ -262,6 +262,7 @@ EOF
 )
 
 # Global constants
+ZL_REPL_LOG="/var/log/zl_replication.log"
 ZL_REPL_SCRIPT="/usr/local/bin/zl_replication.sh"
 ZL_CRON_DEF="/etc/cron.d/zl-replication"
 
