@@ -235,6 +235,174 @@ ad_netbios_name() {
   return 0
 }
 
+# Retrieve the local AD domain FQDN
+# Parameters:
+#   $1[out]: The AD domain FQDN
+ad_domain_fqdn() {
+  local __result_var="${1}"
+
+  local output
+  # Retrieve the domain FQDN using testparm, suppressing errors and taking the last line
+  if ! output=$(realm list | awk '/domain-name/ {print $2}'); then
+    logError "Failed to retrieve AD domain FQDN using testparm"
+    return 1
+  elif [[ -z "${output}" ]]; then
+    logError "AD domain FQDN is empty"
+    return 1
+  fi
+
+  # Return the result in the provided variable name
+  eval "${__result_var}='${output}'"
+  logInfo "Successfully retrieved AD domain FQDN: ${output}"
+
+  return 0
+}
+
+ad_install_sysvol() {
+  local _src="${AD_ROOT}/data/sysvol_refresh.sh"
+  local _dst="/usr/local/bin/sysvol_refresh.sh"
+  local _sysvol_cache="/var/cache/sysvol"
+  local _ad_entry="/usr/local/bin/ad_pam_event.sh"
+  local _domain
+
+  # Check we have the dependencies we need
+  if [ ! -f "${_src}" ]; then
+    logError "SYSVOL refresh script not found at ${_src}"
+    return 1
+  elif ! ad_domain_fqdn _domain; then
+    logError "Failed to retrieve AD domain FQDN for SYSVOL cache setup"
+    return 1
+  fi
+
+  # Set-up the SYSVOL cache directory
+  if [[ ! -e "${_sysvol_cache}" || ! -d ${_sysvol_cache} ]]; then
+    if ! sudo rm -rf "${_sysvol_cache}"; then
+      logError "Failed to remove existing SYSVOL cache path at ${_sysvol_cache}"
+      return 1
+    elif ! sudo mkdir -p "${_sysvol_cache}"; then
+      logError "Failed to create SYSVOL cache directory at ${_sysvol_cache}"
+      return 1
+    elif ! sudo chown -R root:"domain users" "${_sysvol_cache}"; then
+      logError "Failed to set ownership of SYSVOL cache directory at ${_sysvol_cache}"
+      return 1
+    elif ! sudo chmod -R 770 "${_sysvol_cache}"; then
+      logError "Failed to set permissions of SYSVOL cache directory at ${_sysvol_cache}"
+      return 1
+    else
+      logInfo "Successfully set up SYSVOL cache directory at ${_sysvol_cache}"
+    fi
+  fi
+
+  # Install the cache refresh script
+  if ! sudo cp "${_src}" "${_dst}"; then
+    logError "Failed to copy SYSVOL refresh script from ${_src} to ${_dst}"
+    return 1
+  elif ! sudo chown root:"domain users" "${_dst}"; then
+    logError "Failed to set ownership of SYSVOL refresh script at ${_dst}"
+    return 1
+  elif ! sudo chmod 750 "${_dst}"; then
+    logError "Failed to set permissions of SYSVOL refresh script at ${_dst}"
+    return 1
+  else
+    logInfo "Successfully installed SYSVOL refresh script to ${_dst} with cache directory at ${_sysvol_cache}"
+  fi
+
+  # Create the hook script to be run at login
+  local hook_content=$(cat <<EOF
+#!/bin/env sh
+# SPDX-License-Identifier: MIT
+#
+# Script executed at logon to apply SYSVOL
+# Installed by setup's ad.sh
+
+ENTRYPOINT="${_sysvol_cache}/${_domain}/${LOGON_ENTRY_REL}"
+LOGGER_NAME="ad-pam-event-hook"
+
+on_login() {
+  (
+    logger -t "\${LOGGER_NAME}" "Login event detected, running logon for \${PAM_USER}"
+
+    # Run the refresh script, suppressing all output
+    if ! ${_dst}; then
+      logger -t "\${LOGGER_NAME}" "Error executing SYSVOL refresh script at ${_dst}"
+    fi
+
+    # Run the actual scripting
+    if [ -f "\${ENTRYPOINT}" ]; then
+      if ! \${ENTRYPOINT}; then
+        logger -t "\${LOGGER_NAME}" "Error executing logon script at \${ENTRYPOINT}"
+      fi
+    else
+      logger -t "\${LOGGER_NAME}" "No logon script found at \${ENTRYPOINT}, skipping"
+    fi
+  ) &
+
+  return 0
+}
+
+on_logout() {
+  logger -t "\${LOGGER_NAME}" "Logout event detected for \${PAM_USER}"
+  return 0
+}
+
+logger -t "\${LOGGER_NAME}" "User: \${USER}, User Id: \$(id -u), Group Id: \$(id -g)"
+logger -t "\${LOGGER_NAME}" "PamUser: \${PAM_USER}, PamUserId: \${PAM_UID}, PamGroupId: \${PAM_GID}"
+
+result=0
+case "\${PAM_TYPE}" in
+  "open_session")
+    on_login
+    result="\${?}"
+    ;;
+  "close_session")
+    on_logout
+    result="\${?}"
+    ;;
+  *)
+    logger -t "\${LOGGER_NAME}" "Invalid argument received: \$1"
+    result=1
+    ;;
+esac
+
+if [ "\${result}" -ne 0 ]; then
+  logger -t "\${LOGGER_NAME}" "Error executing AD logon hook script: \${result}"
+else
+  logger -t "\${LOGGER_NAME}" "Successfully executed AD logon hook script"
+fi
+
+EOF
+)
+  if ! echo "${hook_content}" | sudo tee "${_ad_entry}" >/dev/null; then
+    logError "Failed to create AD logon hook script at ${_ad_entry}"
+    return 1
+  elif ! sudo chown root:"domain users" "${_ad_entry}"; then
+    logError "Failed to set ownership of AD logon hook script at ${_ad_entry}"
+    return 1
+  elif ! sudo chmod 750 "${_ad_entry}"; then
+    logError "Failed to set permissions of AD logon hook script at ${_ad_entry}"
+    return 1
+  else
+    logInfo "Successfully created AD logon hook script at ${_ad_entry}"
+  fi
+
+  # Install the login hook
+  local pam_file="/etc/pam.d/common-session"
+  local pam_line="session optional pam_exec.so seteuid ${_ad_entry}"
+  if ! sudo grep -F "${pam_line}" "${pam_file}" >/dev/null; then
+    if ! echo "${pam_line}" | sudo tee -a "${pam_file}" >/dev/null; then
+      logError "Failed to add AD logon hook to PAM configuration in ${pam_file}"
+      return 1
+    else
+      logInfo "Successfully added AD logon hook to PAM configuration in ${pam_file}"
+    fi
+  else
+    logDebug "AD logon hook already present in PAM configuration, skipping: ${pam_line}"
+  fi
+
+  return 0
+}
+
+LOGON_ENTRY_REL="scripts/logon.sh"
 SSSD_RESTART=0
 
 ###########################
