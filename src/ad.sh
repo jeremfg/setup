@@ -567,24 +567,28 @@ flock -n 9 || {
   exit 0
 }
 
-# Refresh SYSVOL
-logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
-$(command -v runuser) -u "\${ME_USER}" -- "${refresh_dst}"
-ecode="\${?}"
+# Execute the rest as backgdound to avoid blocking the login
 
-# Write Ready File
-if [ -f "\${home_dir}/${ready_file_rel}" ]; then
-  logger -t "\${LOGGER_NAME}" "Ready file shouldn't exist. It did."
-else
-  echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
-fi
+{
+  # Refresh SYSVOL
+  logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
+  $(command -v runuser) -u "\${ME_USER}" -- "${refresh_dst}"
+  ecode="\${?}"
 
-# Log Success/Failure and exit
-if [ "\${ecode}" -ne 0 ]; then
-  logger -t "\${LOGGER_NAME}" "Error executing PAM hook: \${ecode}"
-else
-  logger -t "\${LOGGER_NAME}" "Successfully executed PAM hook"
-fi
+  # Write Ready File
+  if [ -f "\${home_dir}/${ready_file_rel}" ]; then
+    logger -t "\${LOGGER_NAME}" "Ready file shouldn't exist. It did."
+  else
+    echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
+  fi
+
+  # Log Success/Failure and exit
+  if [ "\${ecode}" -ne 0 ]; then
+    logger -t "\${LOGGER_NAME}" "Error executing PAM hook: \${ecode}"
+  else
+    logger -t "\${LOGGER_NAME}" "Successfully executed PAM hook"
+  fi
+} &
 
 EOF
 )

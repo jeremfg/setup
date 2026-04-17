@@ -12,12 +12,12 @@ sysvol_refresh() {
   fi
 
   # Wait for klist to complete
-  for i in $(seq 1 10); do
+  for i in $(seq 1 300); do
     if klist -s; then
       logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
       break
     else
-      logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/5)"
+      logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/300)"
       sleep 1
     fi
   done
