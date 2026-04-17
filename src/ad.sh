@@ -77,14 +77,16 @@ EOF
 }
 
 ad_fix_krb5_conf() {
-  # local cfg1="default_ccache_name"
-  # local val1="FILE:/tmp/krb5cc_%{uid}"
 
-  # if ! ad_fix_krb5 "${cfg1}" "${val1}"; then
+  if ! ad_fix_krb5 "rdns" "false"; then
+    return 1
+  elif ! ad_fix_krb5 "dns_canonicalize_hostname" "false"; then
+    return 1
+  # elif ! ad_fix_krb5 "default_ccache_name" "FILE:/tmp/krb5cc_%{uid}"; then
   #   return 1
-  # else
-  #   logDebug "Successfully fixed KRB5 configuration for AD login"
-  # fi
+  else
+    logDebug "Successfully fixed KRB5 configuration for AD login"
+  fi
   return 0
 }
 
