@@ -9,12 +9,26 @@ sysvol_refresh() {
   if ! command -v klist > /dev/null 2>&1; then
     logError "klist command not found, please install krb5-user package"
     return 1
-  elif ! klist -s; then
+  fi
+
+  # Wait for klist to complete
+  for i in $(seq 1 10); do
+    if klist -s; then
+      logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
+      break
+    else
+      logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/5)"
+      sleep 1
+    fi
+  done
+
+  if ! klist -s; then
     logError "No Kerberos ticket found, please run kinit before running this script"
     return 1
   else
     logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
   fi
+
   if ! command -v ipcalc > /dev/null 2>&1; then
     logError "ipcalc command not found, please install ipcalc package"
     return 1
