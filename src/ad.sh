@@ -82,8 +82,11 @@ ad_fix_krb5_conf() {
     return 1
   elif ! ad_fix_krb5 "dns_canonicalize_hostname" "false"; then
     return 1
-  # elif ! ad_fix_krb5 "default_ccache_name" "FILE:/tmp/krb5cc_%{uid}"; then
-  #   return 1
+  elif ! ad_fix_krb5 "default_ccache_name" "KCM:"; then
+    return 1
+  elif ! pkg_install "krb5-user"; then
+    logError "krb5-user is required for AD login support scripts"
+    return 1
   else
     logDebug "Successfully fixed KRB5 configuration for AD login"
   fi
@@ -136,7 +139,7 @@ ad_fix_sssd_conf() {
   #   return 1
   # elif ! ad_fix_sssd "krb5_ccname_template" "FILE:%d/krb5cc_%U"; then
   #   return 1
-  elif ! ad_fix_sssd "krb5_use_kcm" "False"; then
+  elif ! ad_fix_sssd "krb5_use_kcm" "True"; then
     return 1
   elif ! ad_fix_sssd "krb5_auth" "True"; then
     return 1
@@ -574,7 +577,8 @@ flock -n 9 || {
 {
   # Refresh SYSVOL
   logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
-  $(command -v runuser) -u "\${ME_USER}" -- "${refresh_dst}"
+  $(command -v runuser) -u "\${ME_USER}" -- \
+    env KRB5CCNAME="FILE:/tmp/krb5cc_\${cur_id}" "${refresh_dst}"
   ecode="\${?}"
 
   # Write Ready File
