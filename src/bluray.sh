@@ -124,7 +124,7 @@ vlc_update_keys() {
   if ! command -v wget >/dev/null 2>&1; then
     logError "wget is not installed, cannot update KEYSDB.cfg for VLC Blu-ray support"
     return 1
-  elif ! file_ensure_dir "$(dirname "${keysdb_path}")"; then
+  elif ! sudo mkdir -p "$(dirname "${keysdb_path}")"; then
     logError "Failed to create directory for KEYSDB.cfg at $(dirname "${keysdb_path}")"
     return 1
   elif ! sudo wget -qO "${keysdb_path}" "${keysdb_url}"; then

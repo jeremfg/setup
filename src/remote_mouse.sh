@@ -87,7 +87,7 @@ _rm_install_rm_ubuntu() {
       sudo rm -rf "${tmp_dir}"
       return 1
     fi
-    if ! file_ensure_dir "${rm_inst_dir}"; then
+    if ! sudo mkdir -p "${rm_inst_dir}"; then
       logError "Failed to create installation directory ${rm_inst_dir} for Remote Mouse server"
       sudo rm -rf "${tmp_dir}"
       return 1
