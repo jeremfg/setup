@@ -9,33 +9,19 @@ sysvol_refresh() {
   if ! command -v klist > /dev/null 2>&1; then
     logError "klist command not found, please install krb5-user package"
     return 1
-  fi
-
-  # Wait for klist to complete
-  for i in $(seq 1 90); do
-    if klist -s; then
-      logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
-      break
-    else
-      logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/300)"
-      sleep 1
-    fi
-  done
-
-  if ! klist -s; then
-    logError "No Kerberos ticket found, please run kinit before running this script"
-    return 1
-  else
-    logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
-  fi
-
-  if ! command -v ipcalc > /dev/null 2>&1; then
+  elif ! command -v ipcalc > /dev/null 2>&1; then
     logError "ipcalc command not found, please install ipcalc package"
     return 1
   fi
 
+  # Retrieve pre-requisite date from the system
+  kcache=""
+  # Wait for kerberos ticket
+  if ! wait_for_creds kcache 90; then
+    logError "Failed to obtain Kerberos credentials within timeout, cannot refresh SYSVOL cache"
+    return 1
   # Get Domain
-  if ! domain=$(realm list | awk '/domain-name/ {print $2}'); then
+  elif ! domain=$(realm list | awk '/domain-name/ {print $2}'); then
     logError "Failed to retrieve domain from realm list"
     return 1
   elif [ -z "${domain}" ]; then
@@ -43,7 +29,8 @@ sysvol_refresh() {
     return 1
   fi
 
-  if ! sysvol_mount "${domain}"; then
+  # Refresh SYSVOL cache
+  if ! sysvol_mount "${domain}" "${kcache}"; then
     logError "Failed to mount SYSVOL, cannot refresh cache"
     return 1
   elif ! sysvol_update_cache "${domain}"; then
@@ -53,6 +40,7 @@ sysvol_refresh() {
     __refresh_res=0
   fi
 
+  # Final clean-up
   if ! sysvol_unmount; then
     logError "Failed to unmount SYSVOL, cannot refresh cache"
     return 1
@@ -61,6 +49,79 @@ sysvol_refresh() {
   fi
 
   return ${__refresh_res}
+}
+
+# Wait for credential cache to appear, and obtain them
+# Parameters:
+#   $1[out]: The credential cache file found
+#   $2[in]: Timeout (in seconds)
+wait_for_creds() {
+  __res_ccache="${1}"
+  timeout="${2}"
+
+  # Obtain user ID
+  user=""
+  if [ -n "${USER}" ]; then
+    user="${USER}"
+  elif [ -n "${PAM_USER}" ]; then
+    user="${PAM_USER}"
+  else
+    logError "Failed to determine user for SYSVOL mount, USER and PAM_USER are both empty"
+    return 1
+  fi
+  user_id="$(id -u "${user}")"
+  if [ -z "${user_id}" ]; then
+    logError "Failed to determine user ID for ${user}"
+    return 1
+  else
+    logInfo "Determined user ID ${user_id} for ${user}"
+  fi
+
+  # Obtain credentials
+  __klist_res=1
+  for i in $(seq 1 "${timeout}"); do
+    # Focus on klist at first
+    if [ ${__klist_res} -ne 0 ]; then
+      if klist -s; then
+        logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
+        __klist_res=0
+      else
+        logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/${timeout})"
+        sleep 1
+        continue
+      fi
+    fi
+
+    # Once klist is successful, look for the ccache file
+
+    # Samba uses its own private Heimdal which cannot reach the SSSD KCM socket.
+    # SSSD creates a FILE ccache alongside KCM at login (e.g. /tmp/krb5cc_UID_XXXXXX).
+    # Locate the most recently modified one that still holds a valid TGT.
+    _ccache_spec=""
+    _ccache_mtime=0
+    for _ccfile in /tmp/krb5cc_${user_id} /tmp/krb5cc_${user_id}_*; do
+      [ -f "${_ccfile}" ] || continue
+      _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
+      if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
+        _ccache_mtime="${_mtime}"
+        _ccache_spec="FILE:${_ccfile}"
+      fi
+    done
+    if [ -z "${_ccache_spec}" ]; then
+      logError "No valid FILE ccache found for smbclient (user=${user}, uid=${user_id}) (attempt ${i}/${timeout})"
+    else
+      logInfo "Using FILE ccache ${_ccache_spec} for smbclient"
+      break
+    fi
+    sleep 1
+  done
+
+  if [ -z "${_ccache_spec}" ] || [ ${__klist_res} -ne 0 ]; then
+    return 1
+  else
+    eval "${__res_ccache}='${_ccache_spec}'"
+    return 0
+  fi
 }
 
 # Refresh the local cache with the contents of the mounted SYSVOL
@@ -90,9 +151,12 @@ sysvol_update_cache() {
 # Clean up the local cache for the domain
 # Parameters:
 #   $1[in]: The domain name (e.g. ad.jeremfg.com
+#   $2[in]: The credential cache file to use with smbclient (e.g. FILE:/tmp/krb5cc_1000)
 sysvol_mount() {
   domain="${1}"
+  ccache_spec="${2}"
 
+  # Locate the nearest reachable domain controller
   if ! sysvol_find_dc my_dc "${domain}"; then
     logError "Failed to find domain controller for SYSVOL mount"
     return 1
@@ -100,46 +164,8 @@ sysvol_mount() {
     logInfo "Found domain controller ${my_dc} for SYSVOL mount"
   fi
 
-  user=""
-  if [ -n "${USER}" ]; then
-    user="${USER}"
-  elif [ -n "${PAM_USER}" ]; then
-    user="${PAM_USER}"
-  else
-    logError "Failed to determine user for SYSVOL mount, USER and PAM_USER are both empty"
-    return 1
-  fi
-
-  user_id="$(id -u "${user}")"
-  if [ -z "${user_id}" ]; then
-    logError "Failed to determine user ID for ${user}"
-    return 1
-  else
-    logInfo "Determined user ID ${user_id} for ${user}"
-  fi
-
-  # Samba uses its own private Heimdal which cannot reach the SSSD KCM socket.
-  # SSSD creates a FILE ccache alongside KCM at login (e.g. /tmp/krb5cc_UID_XXXXXX).
-  # Locate the most recently modified one that still holds a valid TGT.
-  ccache_spec=""
-  _ccache_mtime=0
-  for _ccfile in /tmp/krb5cc_${user_id} /tmp/krb5cc_${user_id}_*; do
-    [ -f "${_ccfile}" ] || continue
-    _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
-    if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
-      _ccache_mtime="${_mtime}"
-      ccache_spec="FILE:${_ccfile}"
-    fi
-  done
-  if [ -z "${ccache_spec}" ]; then
-    logError "No valid FILE ccache found for smbclient (user=${user}, uid=${user_id})"
-    logError "Samba's private Heimdal cannot use the SSSD KCM socket; a FILE ccache is required"
-    return 1
-  fi
-  logInfo "Using FILE ccache ${ccache_spec} for smbclient"
-
   __res=1
-  # Mount sysvol
+  # Do the actual mounting of SYSVOL
   if ! sysvol_unmount; then
     logError "Failed to unmount existing SYSVOL mount, cannot proceed with refresh"
     return 1

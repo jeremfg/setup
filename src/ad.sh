@@ -551,7 +551,7 @@ else
   logger -t "\${LOGGER_NAME}" "ME_USER is \${ME_USER}, proceeding with AD logon hook"
 fi
 
-# Get User Details
+# Get User Details and validate him
 cur_id="\$(id -u "\${ME_USER}" 2>/dev/null)"
 if [ -z "\${cur_id}" ]; then
   logger -t "\${LOGGER_NAME}" "Failed to retrieve user ID for \${ME_USER}"
@@ -564,8 +564,16 @@ if [ -z "\${home_dir}" ]; then
 elif [ ! -d "\${home_dir}" ]; then
   logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} does not exist for user \${ME_USER}"
   exit 0
+# Check if directory is under /home
+elif [ "\${home_dir}" != /home/* ]; then
+  logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} is not under /home, skipping AD logon hook for user \${ME_USER}"
+  exit 0
 elif ! mkdir -p "\${home_dir}/$(dirname "${ready_file_rel}")"; then
   logger -t "\${LOGGER_NAME}" "Failed to create state directory"
+  exit 0
+# Check if user is a domain user
+elif ! id -nG \${cur_id} 2>/dev/null | grep -qw "domain users"; then
+  logger -t "\${LOGGER_NAME}" "User \${ME_USER} is not a member of domain users group, skipping AD logon hook"
   exit 0
 fi
 
@@ -592,14 +600,17 @@ if [ -e "\${home_dir}/${ready_file_rel}" ]; then
 fi
 
 # Acquire Lock
-exec 9>"\${home_dir}/${lock_file_rel}"
+lockfile="\${home_dir}/.local/state/ad_logon.lock"
+exec 9>"\${lockfile}"
+if [ -f "\${lockfile}" ] && [ "\$(stat -c %u "\${lockfile}")" != "\${cur_id}" ]; then
+  chown \${cur_id}:"domain users" "\${lockfile}"
+fi
 flock -n 9 || {
   logger -t "\${LOGGER_NAME}" "Failed to acquire lock for PAM hook. Exiting."
   exit 0
 }
 
 # Execute the rest as backgdound to avoid blocking the login
-
 {
   # Refresh SYSVOL
   logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
@@ -612,6 +623,9 @@ flock -n 9 || {
     logger -t "\${LOGGER_NAME}" "Ready file shouldn't exist. It did."
   else
     echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
+    if [ -f "\${home_dir}/${ready_file_rel}" ] && [ "\$(stat -c %u "\${home_dir}/${ready_file_rel}")" != "\${cur_id}" ]; then
+      chown \${cur_id}:"domain users" "\${home_dir}/${ready_file_rel}"
+    fi
   fi
 
   # Log Success/Failure and exit
