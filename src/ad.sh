@@ -565,7 +565,7 @@ elif [ ! -d "\${home_dir}" ]; then
   logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} does not exist for user \${ME_USER}"
   exit 0
 # Check if directory is under /home
-elif [ "\${home_dir}" != /home/* ]; then
+elif [ "\${home_dir#/home/}" = "\${home_dir}" ]; then
   logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} is not under /home, skipping AD logon hook for user \${ME_USER}"
   exit 0
 elif ! mkdir -p "\${home_dir}/$(dirname "${ready_file_rel}")"; then
@@ -614,18 +614,28 @@ flock -n 9 || {
 {
   # Refresh SYSVOL
   logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
-  $(command -v runuser) -u "\${ME_USER}" -- \
+  if [ \$(id -u) -eq 0 ]; then
+    $(command -v runuser) -u "\${ME_USER}" -- \
+      env KRB5CCNAME="KCM:\${cur_id}" "${refresh_dst}"
+    ecode="\${?}"
+  elif [ \$(id -u) -eq "\${cur_id}" ]; then
     env KRB5CCNAME="KCM:\${cur_id}" "${refresh_dst}"
-  ecode="\${?}"
+    ecode="\${?}"
+  else
+    logger -t "\${LOGGER_NAME}" "Unexpected user ID \$(id -u) for PAM hook execution, expected 0 or \${cur_id}"
+    exit 1
+  fi
 
   # Write Ready File
   if [ -f "\${home_dir}/${ready_file_rel}" ]; then
-    logger -t "\${LOGGER_NAME}" "Ready file shouldn't exist. It did."
-  else
+    logger -t "\${LOGGER_NAME}" "Ready file shouldn't exist. It did. Try triggering again"
+    rm -f "\${home_dir}/${ready_file_rel}"
+  fi
+  if [ \$(id -u) -eq 0 ]; then
+    $(command -v runuser) -u "\${ME_USER}" -- \
+      echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
+  elif [ \$(id -u) -eq "\${cur_id}" ]; then
     echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
-    if [ -f "\${home_dir}/${ready_file_rel}" ] && [ "\$(stat -c %u "\${home_dir}/${ready_file_rel}")" != "\${cur_id}" ]; then
-      chown \${cur_id}:"domain users" "\${home_dir}/${ready_file_rel}"
-    fi
   fi
 
   # Log Success/Failure and exit
