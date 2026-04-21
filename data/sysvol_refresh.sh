@@ -12,7 +12,7 @@ sysvol_refresh() {
   fi
 
   # Wait for klist to complete
-  for i in $(seq 1 300); do
+  for i in $(seq 1 90); do
     if klist -s; then
       logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
       break
@@ -34,10 +34,19 @@ sysvol_refresh() {
     return 1
   fi
 
-  if ! sysvol_mount; then
+  # Get Domain
+  if ! domain=$(realm list | awk '/domain-name/ {print $2}'); then
+    logError "Failed to retrieve domain from realm list"
+    return 1
+  elif [ -z "${domain}" ]; then
+    logError "Failed to retrieve domain from realm list: no output from realm command"
+    return 1
+  fi
+
+  if ! sysvol_mount "${domain}"; then
     logError "Failed to mount SYSVOL, cannot refresh cache"
     return 1
-  elif ! sysvol_update_cache; then
+  elif ! sysvol_update_cache "${domain}"; then
     logError "Failed to update SYSVOL cache"
     __refresh_res=1
   else
@@ -54,15 +63,11 @@ sysvol_refresh() {
   return ${__refresh_res}
 }
 
+# Refresh the local cache with the contents of the mounted SYSVOL
+# Parameters:
+#   $1[in]: The domain name (e.g. ad.jeremfg.com
 sysvol_update_cache() {
-  # Get expect domain subdir
-  if ! domain=$(realm list | awk '/domain-name/ {print $2}'); then
-    logError "Failed to retrieve domain from realm list"
-    return 1
-  elif [ -z "${domain}" ]; then
-    logError "Failed to retrieve domain from realm list: no output from realm command"
-    return 1
-  fi
+  domain="${1}"
 
   # Syncrhonize the cache
   if ! mkdir -p "${SYSVOL_CACHE_DIR}/${domain}"; then
@@ -82,8 +87,13 @@ sysvol_update_cache() {
   return 0
 }
 
+# Clean up the local cache for the domain
+# Parameters:
+#   $1[in]: The domain name (e.g. ad.jeremfg.com
 sysvol_mount() {
-  if ! sysvol_find_dc my_dc; then
+  domain="${1}"
+
+  if ! sysvol_find_dc my_dc "${domain}"; then
     logError "Failed to find domain controller for SYSVOL mount"
     return 1
   else
@@ -108,6 +118,26 @@ sysvol_mount() {
     logInfo "Determined user ID ${user_id} for ${user}"
   fi
 
+  # Samba uses its own private Heimdal which cannot reach the SSSD KCM socket.
+  # SSSD creates a FILE ccache alongside KCM at login (e.g. /tmp/krb5cc_UID_XXXXXX).
+  # Locate the most recently modified one that still holds a valid TGT.
+  ccache_spec=""
+  _ccache_mtime=0
+  for _ccfile in /tmp/krb5cc_${user_id} /tmp/krb5cc_${user_id}_*; do
+    [ -f "${_ccfile}" ] || continue
+    _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
+    if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
+      _ccache_mtime="${_mtime}"
+      ccache_spec="FILE:${_ccfile}"
+    fi
+  done
+  if [ -z "${ccache_spec}" ]; then
+    logError "No valid FILE ccache found for smbclient (user=${user}, uid=${user_id})"
+    logError "Samba's private Heimdal cannot use the SSSD KCM socket; a FILE ccache is required"
+    return 1
+  fi
+  logInfo "Using FILE ccache ${ccache_spec} for smbclient"
+
   __res=1
   # Mount sysvol
   if ! sysvol_unmount; then
@@ -119,19 +149,19 @@ sysvol_mount() {
   elif ! cd "${SYSVOL_MOUNT_POINT}" > /dev/null; then
     logError "Failed to change directory to ${SYSVOL_MOUNT_POINT}"
     return 1
-  # --use-krb5-ccache=FILE:/tmp/krb5cc_${user_id}
-  elif ! smbclient "//${my_dc}/SYSVOL" -D . -c "prompt OFF; recurse ON; mget *" \
+  elif ! KRB5CCNAME="${ccache_spec}" smbclient "//${my_dc}/SYSVOL" \
+    -D . -c "prompt OFF; recurse ON; mget *" \
     --use-kerberos=required -m SMB3 -d 0; then
     logError "Failed to copy SYSVOL contents from //${my_dc}/SYSVOL to ${SYSVOL_MOUNT_POINT}"
     __res=1
   else
     logInfo "Successfully copied SYSVOL contents from //${my_dc}/SYSVOL to ${SYSVOL_MOUNT_POINT}"
+    __res=0
   fi
 
   if ! cd - > /dev/null; then
     logError "Failed to change directory back from ${SYSVOL_MOUNT_POINT}"
-  else
-    __res=0
+    __res=1
   fi
 
   logInfo "Successfully mounted SYSVOL at ${SYSVOL_MOUNT_POINT}"
@@ -160,19 +190,10 @@ sysvol_unmount() {
 # Select which DC to mount based on network proximity
 # Parameters:
 #   $1[out]: The selected DC (FQDN)
+#   $2[in]: The domain name (e.g. ad.jeremfg.com
 sysvol_find_dc() {
   __res_dc="${1}"
-
-  # Get the current domain
-  if ! domain=$(realm list | awk '/domain-name/ {print $2}'); then
-    logError "Failed to retrieve domain from realm list"
-    return 1
-  elif [ -z "${domain}" ]; then
-    logError "Failed to retrieve domain from realm list: no output from realm command"
-    return 1
-  else
-    logInfo "Current domain: ${domain}"
-  fi
+  domain="${2}"
 
   candidate_dc=""
   # Retrieve all DCs for the domain

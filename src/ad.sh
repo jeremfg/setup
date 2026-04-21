@@ -14,10 +14,7 @@ sssd_conf="/etc/sssd/sssd.conf"
 ad_ubuntu_cinnamon_fix() {
   logInfo "Fixing Ubuntu Cinnamon configuration for AD login"
 
-  if ! ad_fix_services; then
-    logError "Failed to fix AD related services for AD login"
-    return 1
-  elif ! ad_fix_sssd_conf; then
+  if ! ad_fix_sssd_conf; then
     logError "Failed to fix SSSD configuration for AD login"
     return 1
   elif ! ad_fix_krb5_conf; then
@@ -25,6 +22,9 @@ ad_ubuntu_cinnamon_fix() {
     return 1
   elif ! ad_fix_sudoers; then
     logError "Failed to fix sudoers configuration for AD login"
+    return 1
+  elif ! ad_fix_services; then
+    logError "Failed to fix AD related services for AD login"
     return 1
   elif ! ldm_fix; then
     logError "Failed to fix LightDM configuration for AD login"
@@ -77,15 +77,14 @@ EOF
 }
 
 ad_fix_krb5_conf() {
-
-  if ! ad_fix_krb5 "rdns" "false"; then
+  if ! pkg_install "krb5-user" "sssd-kcm" "ipcalc" "smbclient"; then
+    logError "krb5-user, sssd-kcm, ipcalc, and smbclient are required for KCM credential cache and SYSVOL support"
+    return 1
+  elif ! ad_fix_krb5 "rdns" "false"; then
     return 1
   elif ! ad_fix_krb5 "dns_canonicalize_hostname" "false"; then
     return 1
   elif ! ad_fix_krb5 "default_ccache_name" "KCM:"; then
-    return 1
-  elif ! pkg_install "krb5-user"; then
-    logError "krb5-user is required for AD login support scripts"
     return 1
   else
     logDebug "Successfully fixed KRB5 configuration for AD login"
@@ -201,6 +200,7 @@ ad_fix_services() {
   local srv1="sssd-nss.socket"
   local srv2="sssd-pam.socket"
   local srv3="sssd-pac.socket"
+  local kcm_socket="sssd-kcm.socket"
   if ! ad_end_service "${srv1}"; then
     logError "Failed to end service: ${srv1}"
     return 1
@@ -210,8 +210,41 @@ ad_fix_services() {
   elif ! ad_end_service "${srv3}"; then
     logError "Failed to end service: ${srv3}"
     return 1
+  elif ! ad_enable_service "${kcm_socket}"; then
+    logError "Failed to enable KCM socket: ${kcm_socket}"
+    return 1
   else
-    logDebug "Successfully ended AD related services"
+    logDebug "Successfully configured AD related services"
+  fi
+
+  return 0
+}
+
+# Enable and start the given AD service
+# Parameters:
+#   $1: Service name
+ad_enable_service() {
+  local srv="$1"
+  logInfo "Enabling AD related service: ${srv}"
+
+  if [[ -z "${srv}" ]]; then
+    logError "Missing service name for ad_enable_service"
+    return 1
+  fi
+
+  if ! sudo systemctl enable "${srv}"; then
+    logError "Failed to enable service: ${srv}"
+    return 1
+  else
+    logInfo "Successfully enabled service: ${srv}"
+  fi
+
+  if ! sudo systemctl start "${srv}"; then
+    logError "Failed to start service: ${srv}"
+    return 1
+  else
+    SSSD_RESTART=1
+    logInfo "Successfully started service: ${srv}"
   fi
 
   return 0
@@ -255,15 +288,6 @@ ad_end_service() {
   fi
 
   return 0
-}
-
-ad_support_automount() {
-  if ! pkg_install "ipcalc" "cifs-utils" "krb5-user"; then
-    logError "Failed to install ipcalc for AD automount support"
-    return 1
-  else
-    logDebug "Successfully installed ipcalc for AD automount support"
-  fi
 }
 
 # Retrieve the local NetBIOS name
@@ -335,22 +359,24 @@ ad_install_sysvol() {
   fi
 
   # Set-up the SYSVOL cache directory
-  if [[ ! -e "${sysvol_cache}" || ! -d ${sysvol_cache} ]]; then
-    if ! sudo rm -rf "${sysvol_cache}"; then
-      logError "Failed to remove existing SYSVOL cache path at ${sysvol_cache}"
+  # Remove any non-directory at the path first, then create, then always enforce ownership/permissions.
+  if [[ -e "${sysvol_cache}" && ! -d "${sysvol_cache}" ]]; then
+    if ! sudo rm -f "${sysvol_cache}"; then
+      logError "Failed to remove non-directory at SYSVOL cache path ${sysvol_cache}"
       return 1
-    elif ! sudo mkdir -p "${sysvol_cache}"; then
-      logError "Failed to create SYSVOL cache directory at ${sysvol_cache}"
-      return 1
-    elif ! sudo chown -R root:"domain users" "${sysvol_cache}"; then
-      logError "Failed to set ownership of SYSVOL cache directory at ${sysvol_cache}"
-      return 1
-    elif ! sudo chmod -R 770 "${sysvol_cache}"; then
-      logError "Failed to set permissions of SYSVOL cache directory at ${sysvol_cache}"
-      return 1
-    else
-      logInfo "Successfully set up SYSVOL cache directory at ${sysvol_cache}"
     fi
+  fi
+  if ! sudo mkdir -p "${sysvol_cache}"; then
+    logError "Failed to create SYSVOL cache directory at ${sysvol_cache}"
+    return 1
+  elif ! sudo chown root:"domain users" "${sysvol_cache}"; then
+    logError "Failed to set ownership of SYSVOL cache directory at ${sysvol_cache}"
+    return 1
+  elif ! sudo chmod 770 "${sysvol_cache}"; then
+    logError "Failed to set permissions of SYSVOL cache directory at ${sysvol_cache}"
+    return 1
+  else
+    logInfo "Successfully set up SYSVOL cache directory at ${sysvol_cache}"
   fi
 
   # Install the cache refresh script
@@ -578,7 +604,7 @@ flock -n 9 || {
   # Refresh SYSVOL
   logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
   $(command -v runuser) -u "\${ME_USER}" -- \
-    env KRB5CCNAME="FILE:/tmp/krb5cc_\${cur_id}" "${refresh_dst}"
+    env KRB5CCNAME="KCM:\${cur_id}" "${refresh_dst}"
   ecode="\${?}"
 
   # Write Ready File
