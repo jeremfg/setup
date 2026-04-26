@@ -26,6 +26,65 @@ python_install() {
   return 0
 }
 
+# Install python module system-wide
+#
+# Parameters:
+#   $@: List of python modules to install
+# Returns:
+#   0: Success
+#   1: Failure
+pipx_install() {
+  python_install
+
+  if ! command -v pipx &>/dev/null; then
+    logInfo "pipx is not installed. Installing pipx..."
+    if ! pkg_install pipx; then
+      logError "Failed to install pipx"
+      return 1
+    fi
+  else
+    logInfo "pipx is already installed"
+  fi
+
+  # Check if python module is already installed
+  local missing_packages=()
+  for package in "$@"; do
+    name="${package%%==*}"
+    version="${package##*==}"
+    logTrace "Checking if ${name} is installed at version ${version}"
+    if res=$(pipx list --short | grep "^${name} " || true); then
+      # Check if it's the proper version
+      if [[ -n "${version}" ]]; then
+        if echo "${res}" | grep " ${version}$" &>/dev/null; then
+          logInfo "${name} is already installed at version ${version}"
+        else
+          logTrace <<EOF
+Version mismatch for ${name}. Expected ${version}. Received:
+
+${res}
+EOF
+          missing_packages+=("${package}")
+        fi
+      fi
+    else
+      logInfo "${name} is missing"
+      missing_packages+=("${package}")
+    fi
+  done
+
+  if [[ ${#missing_packages[@]} -gt 0 ]]; then
+    logTrace "Installing missing packages: ${missing_packages[*]}"
+    if ! pipx install "${missing_packages[@]}"; then
+      logError "Failed to install missing packages"
+      return 1
+    fi
+  else
+    logInfo "Nothing to install"
+  fi
+
+  return 0
+}
+
 # Install python modules
 #
 # Parameters:
@@ -67,7 +126,7 @@ EOF
 
   if [[ ${#missing_packages[@]} -gt 0 ]]; then
     logTrace "Installing missing packages: ${missing_packages[*]}"
-    if ! pip3 install "${missing_packages[@]}"; then
+    if ! sudo pip3 install --break-system-packages "${missing_packages[@]}"; then
       logError "Failed to install missing packages"
       return 1
     fi

@@ -38,6 +38,22 @@ ad_ubuntu_cinnamon_fix() {
   return 0
 }
 
+ad_client_support() {
+  logInfo "Installing AD client support"
+
+  if ! pkg_install "python3-ldap3" "python3-gssapi"; then
+    logError "Failed to install required packages for AD client support"
+    return 1
+  elif ! pip_install "sectools"; then
+    logError "Failed to install sectools Python package for AD client support"
+    return 1
+  else
+    logDebug "Successfully installed required packages for AD client support"
+  fi
+
+  return 0
+}
+
 ad_sssd_restart() {
   if [[ ${SSSD_RESTART} -eq 1 ]]; then
     logInfo "Restarting SSSD to apply changes"
@@ -736,6 +752,8 @@ if ! source "${PREFIX}/lib/slf4.sh"; then
   exit 1
 elif ! source "${AD_ROOT}/src/lightdm.sh"; then
   logFatal "Failed to import lightdm.sh"
+elif ! source "${AD_ROOT}/src/python.sh"; then
+  logFatal "Failed to import python.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
