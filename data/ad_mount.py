@@ -5,11 +5,6 @@
 
 from __future__ import annotations
 from pathlib import Path
-
-SETUP_ROOT = Path(__file__).parent.parent.parent
-
-
-
 import ipaddress
 import logging
 from os import environ as env
@@ -18,14 +13,22 @@ import re
 import socket
 import subprocess
 from ldap3 import Server, Connection, SASL, GSSAPI, ALL
-import DescribeNTSecurityDescriptor as ntsec
 from sectools.windows.ldap.ldap import ldap3_kerberos_login
 from getpass import getuser
 import os
 import pwd as _pwd
 
-SYSVOL_CACHE = "/var/cache/sysvol"
+# Add pyDescribeNTSecurityDescriptor tp the PATH
+SETUP_ROOT = Path(__file__).parent.parent
+NTSEC_DIR = "external/pyDescribeNTSecurityDescriptor"
+NTSEC_FILE = "DescribeNTSecurityDescriptor.py"
+if (Path(SETUP_ROOT) / NTSEC_DIR / NTSEC_FILE).is_file():
+    import sys
+    sys.path.insert(0, str(Path(SETUP_ROOT) / NTSEC_DIR))
 
+import DescribeNTSecurityDescriptor as ntsec
+
+SYSVOL_CACHE = "/var/cache/sysvol"
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
