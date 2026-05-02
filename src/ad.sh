@@ -41,10 +41,10 @@ ad_ubuntu_cinnamon_fix() {
 ad_client_support() {
   logInfo "Installing AD client support"
 
-  if ! pkg_install "python3-ldap3" "python3-gssapi"; then
+  if ! pkg_install "python3-ldap3" "python3-gi"; then
     logError "Failed to install required packages for AD client support"
     return 1
-  elif ! pip_install "sectools"; then
+  elif ! pip_install "sectools" "gssapi" "krb5" "smbprotocol"; then
     logError "Failed to install sectools Python package for AD client support"
     return 1
   else

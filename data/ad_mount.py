@@ -4,6 +4,7 @@
 # Helpers for Active Directory mount
 
 from __future__ import annotations
+from http import server
 from pathlib import Path
 import ipaddress
 import logging
@@ -12,11 +13,18 @@ from os import environ as env
 import re
 import socket
 import subprocess
+import time
 from ldap3 import Server, Connection, SASL, GSSAPI, ALL
+import urllib
 from sectools.windows.ldap.ldap import ldap3_kerberos_login
 from getpass import getuser
 import os
 import pwd as _pwd
+import xml.etree.ElementTree as ET
+import smbclient
+from gssapi.exceptions import GSSError
+from smbprotocol.exceptions import NtStatus, SMBOSError
+from gi.repository import Gio, GLib
 
 # Add pyDescribeNTSecurityDescriptor tp the PATH
 SETUP_ROOT = Path(__file__).parent.parent
@@ -132,14 +140,17 @@ class SysvolCache:
 
     def process_mounts(self, ldap: ntsec.LDAPSearcher) -> list[DriveDescriptor]:
         # Iterate over all Drive and Folder XML files in the cache
-        for xml_file in self.cache_path.glob("**/Drives.xml"):
-            logger.debug(f"Processing sysvol XML file: {xml_file}")
-            if self._is_gpo_applied(self._extract_gpo_id(xml_file), ldap):
-                self._process_drive_xml(xml_file)
         for xml_file in self.cache_path.glob("**/Folders.xml"):
             logger.debug(f"Processing sysvol XML file: {xml_file}")
             if self._is_gpo_applied(self._extract_gpo_id(xml_file), ldap):
                 self._process_folder_xml(xml_file)
+        for xml_file in self.cache_path.glob("**/Drives.xml"):
+            logger.debug(f"Processing sysvol XML file: {xml_file}")
+            if self._is_gpo_applied(self._extract_gpo_id(xml_file), ldap):
+                self._process_drive_xml(xml_file)
+
+        # Fix bookmark
+        self._ensure_nemo_bookmark(str(Path.home() / "Drives"))
 
     def _extract_gpo_id(self, xml_file: Path) -> str:
         return self._gpo_regex.match(str(xml_file)).group(1)
@@ -250,10 +261,388 @@ class SysvolCache:
         return ace_sid_str in self.cur_user.sid_set
 
     def _process_drive_xml(self, xml_file: Path) -> None:
-        pass
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+        for drive in root.findall("Drive"):
+            name = self._expand_var(drive.get("name"))
+            if drive.get("userContext") != "1":
+                logger.warning(f"Only supporting Drive actions ran within the user context. Skipping '{name}'")
+                continue
+            props = drive.find("Properties")
+            if props.get("allDrives") != "NOCHANGE":
+                logger.warning(f"Unsupported Drive property allDrives='{props.get('allDrives')}' for '{name}'. Skipping.")
+                continue
+            is_shown = props.get("thisDrive") == "SHOW"
+            if not is_shown:
+                logger.warning(f"Unsupported Drive property thisDrive='{props.get('thisDrive')}' for '{name}'. Skipping.")
+                continue
+            use_letter = props.get("useLetter") == "1"
+            action = props.get("action")
+            path = self._expand_var(props.get("path"))
+            label = self._expand_var(props.get("label"))
+            letter = props.get("letter")
+            is_persistent = props.get("persistent") == "1"
+
+            if use_letter and len(letter) > 0:
+                label = label + f" ({letter})"
+
+            if action in ("C", "U"):
+                logger.info(f"Mounting '{name}' as '{label}' to '{path}' (persistent={is_persistent})")
+                self._mount(path, label, is_persistent)
+            elif action == "D":
+                logger.warning(f"Removing '{name}' as '{label}'")
+                self._unmount(path, label)
+            elif action == "R":
+                logger.warning(f"Replacing '{name}' as '{label}' to '{path}' (persistent={is_persistent})")
+                self._unmount(path, label)
+                self._mount(path, label, is_persistent)
+            else:
+                logger.warning(f"Unsupported Drive action='{action}' for '{name}'. Skipping.")
+                continue
+
+            logger.info(f"Successfully processed Drive action='{action}' for '{name}'")
+
+    def _unc_to_smb(self, unc_path: str) -> str:
+        # Convert a UNC path like \\server\share\path to a smbclient-compatible path like //server/share/path
+        if not unc_path.startswith("\\\\"):
+            raise ValueError(f"Invalid UNC path: {unc_path}")
+        parts = unc_path[2:].split("\\")
+        if len(parts) < 2:
+            raise ValueError(f"Invalid UNC path: {unc_path}")
+        server = parts[0]
+        share = parts[1]
+        subpath = "/".join(parts[2:]) if len(parts) > 2 else ""
+        smb_path = f"smb://{server}/{share}"
+        if subpath:
+            smb_path += f"/{subpath}"
+        return smb_path
+
+    def _ensure_nemo_bookmark(self, path: str) -> None:
+        bookmarks_file = Path.home() / ".config" / "gtk-3.0" / "bookmarks"
+        uri = f"file://{path}"
+        entry = f"{uri} Drives"
+
+        lines = []
+        if os.path.exists(bookmarks_file):
+            with open(bookmarks_file, "r", encoding="utf-8") as f:
+                lines = [l.strip() for l in f.readlines() if l.strip()]
+
+        # Check if already present
+        for line in lines:
+            if line.startswith(uri):
+                return
+
+        # Append (do not reorder)
+        lines.append(entry)
+
+        # Write back
+        with open(bookmarks_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+    def _split_smb(self, uri: str):
+        parsed = urllib.parse.urlparse(uri)
+        if parsed.scheme != "smb":
+            raise ValueError(f"Invalid SMB URI: {uri}")
+        server = parsed.hostname
+        if not server:
+            raise ValueError(f"Could not parse server from SMB URI: {uri}")
+        parts = parsed.path.strip("/").split("/", 1)
+        if not parts or parts[0] == "":
+            raise ValueError(f"Could not parse share from SMB URI: {uri}")
+        share = parts[0] if parts else ""
+        subpath = parts[1] if len(parts) > 1 else ""
+        return {"server": server, "share": share, "subpath": subpath}
+
+    def _compute_subpath(self, requested_url: str, actual_url: str) -> str:
+        req = self._split_smb(requested_url)
+        act = self._split_smb(actual_url)
+
+        # Normalize for comparison
+        if req["server"].casefold() != act["server"].casefold():
+            raise ValueError(f"Server mismatch: requested '{req['server']}' vs actual '{act['server']}'")
+
+        if req["share"].casefold() != act["share"].casefold():
+            raise ValueError(f"Share mismatch: requested '{req['share']}' vs actual '{act['share']}'")
+
+        # The remaining part is the subpath
+        return req["subpath"]
+
+
+    def _mount(self, path: str, label: str, is_persistent: bool) -> None:
+        logger.info(f"Mounting '{path}' as '{label}' (persistent={is_persistent})")
+        drives_dir = Path("~", "Drives").expanduser()
+        if not drives_dir.is_dir():
+            drives_dir.mkdir()
+
+        # Mount the drive
+        smb_url = self._unc_to_smb(path)
+        gvfs_file = Gio.File.new_for_uri(smb_url)
+
+        loop = GLib.MainLoop()
+        result_holder = {"error": None, "done": False}
+
+        def mount_done(source, result, user_data):
+            try:
+                source.mount_enclosing_volume_finish(result)
+                logger.info(f"Mount operation for '{smb_url}' completed successfully")
+            except Exception as e:
+                logger.error(f"Error mounting SMB URL '{smb_url}': {str(e)}")
+                result_holder["error"] = e
+            finally:
+                result_holder["done"] = True
+                loop.quit()
+
+        def on_timeout():
+            if not result_holder["done"]:
+                logger.error(f"Mount operation for '{smb_url}' timed out")
+                result_holder["error"] = TimeoutError(f"Mount operation for '{smb_url}' timed out")
+                loop.quit()
+            return False  # Stop the timeout
+
+        gvfs_file.mount_enclosing_volume(
+            Gio.MountMountFlags.NONE,
+            None,
+            None,
+            mount_done,
+            None
+        )
+
+        GLib.timeout_add_seconds(60, on_timeout)  # Set a timeout for the mount operation
+        loop.run()
+
+        if result_holder["error"]:
+            if not isinstance(result_holder["error"], GLib.Error):
+                raise result_holder["error"]
+            if result_holder["error"].code == Gio.IOErrorEnum.ALREADY_MOUNTED:
+                logger.warning(f"SMB URL '{smb_url}' is already mounted")
+            else:
+                raise result_holder["error"]
+
+        # Wait for the mount to appear in gvfs
+        mount_point = None
+        gvfs_mount = gvfs_file.find_enclosing_mount(None)
+        if gvfs_mount:
+            path = Path(gvfs_mount.get_root().get_path())
+            if path.is_dir():
+                mount_point = path
+                logger.info(f"Mount point found for '{smb_url}'")
+
+        if not mount_point:
+            raise ValueError(f"Mount point '{mount_point}' not found after mounting '{smb_url}'")
+
+        # Calculate subpath
+        subpath = self._compute_subpath(smb_url, gvfs_mount.get_root().get_uri())
+
+        # Full path to the subfolder if specified
+        if subpath and len(subpath) > 0:
+            mount_point = Path(mount_point, subpath)
+        if not mount_point.exists():
+            raise ValueError(f"Mount point '{mount_point}' does not exist after mounting '{smb_url}'")
+
+        # Handle the symlink
+        symlink_path = drives_dir / label
+
+        if symlink_path.exists():
+            if symlink_path.is_symlink() and symlink_path.resolve().as_posix() == mount_point.as_posix():
+                logger.info(f"Symlink '{symlink_path}' already exists and points to the correct mount point '{mount_point}'")
+                return
+            elif symlink_path.is_symlink():
+                logger.warning(f"Symlink '{symlink_path}' already exists but does not point to the correct mount point. Removing it.")
+                symlink_path.unlink()
+            else:
+                raise ValueError(f"Path '{symlink_path}' already exists and is not a symlink. Cannot create symlink for drive '{label}'")
+
+        symlink_path.symlink_to(mount_point)
+        logger.info(f"Created symlink '{symlink_path}' pointing to mount point '{mount_point}'")
+
+    def _unmount(self, path: str, label: str) -> None:
+        logger.info(f"Unmounting '{path}'")
+        drives_dir = Path("~", "Drives").expanduser()
+        smb_url = self._unc_to_smb(path)
+
+        gvfs_file = Gio.File.new_for_uri(smb_url)
+        mount_point = None
+        gvfs_mount = None
+        try:
+            gvfs_mount = gvfs_file.find_enclosing_mount(None)
+        except GLib.Error as e:
+            if e.code == Gio.IOErrorEnum.NOT_MOUNTED:
+                logger.warning(f"SMB URL '{smb_url}' is not mounted according to gvfs")
+            else:
+                logger.error(f"Error checking mount for SMB URL '{smb_url}': {str(e)}")
+                raise e
+
+        symlink = None
+        sym_count = 0
+        if gvfs_mount:
+            mount_point = Path(gvfs_mount.get_root().get_path())
+            logger.info(f"Found mount point for '{smb_url}': '{mount_point}'")
+
+            # Find subpath
+            subpath = self._compute_subpath(smb_url, gvfs_mount.get_root().get_uri())
+
+            # Find the corresponding symlink prefix and check if it's the last one to use the mount
+            symlink_prefix = Path(drives_dir, subpath)
+            for entry in drives_dir.iterdir():
+                if entry.is_symlink() and entry.resolve().as_posix().startswith(mount_point.as_posix()):
+                    if entry.as_posix().startswith(symlink_prefix.as_posix()):
+                        symlink = entry
+                        logger.info(f"Found symlink: '{entry}'")
+                    else:
+                        sym_count += 1
+        else:
+            subpath = label
+            symlink_prefix = Path(drives_dir, subpath)
+            if symlink_prefix.exists() and symlink_prefix.is_symlink():
+                symlink = symlink_prefix
+                logger.info(f"Found symlink for '{label}' without gvfs mount: '{symlink}'")
+
+
+        # Unmount only if there are no other symlinks pointing to the mount point
+        if gvfs_mount and sym_count == 0:
+            loop = GLib.MainLoop()
+            result_holder = {"error": None, "done": False}
+
+            def done_cb(source, result, user_data):
+                try:
+                    source.unmount_with_operation_finish(result)
+                    logger.info(f"Unmount operation for '{smb_url}' completed successfully")
+                except Exception as e:
+                    logger.error(f"Error unmounting SMB URL '{smb_url}': {str(e)}")
+                    result_holder["error"] = e
+                finally:
+                    result_holder["done"] = True
+                    loop.quit()
+
+            def on_timeout():
+                if not result_holder["done"]:
+                    logger.error(f"Unmount operation for '{smb_url}' timed out")
+                    result_holder["error"] = TimeoutError(f"Unmount operation for '{smb_url}' timed out")
+                    loop.quit()
+                return False  # Stop the timeout
+
+            gvfs_mount.unmount_with_operation(
+                Gio.MountUnmountFlags.NONE,
+                None,
+                None,
+                done_cb,
+                None
+            )
+
+            GLib.timeout_add_seconds(15, on_timeout)  # Set a timeout for the unmount operation
+            loop.run()
+            if result_holder["error"]:
+                if not isinstance(result_holder["error"], GLib.Error):
+                    raise result_holder["error"]
+                if result_holder["error"].code == Gio.IOErrorEnum.NOT_MOUNTED:
+                    logger.warning(f"SMB URL '{smb_url}' is not mounted according to gvfs")
+                else:
+                    raise result_holder["error"]
+        else:
+            logger.warning(f"Not unmounting SMB URL '{smb_url}' because there are still {sym_count} symlinks pointing to it")
+
+        # Remove the symlink if it exists
+        if symlink and symlink.is_symlink():
+            symlink.unlink()
+            logger.info(f"Removed symlink '{symlink}'")
+        else:
+            logger.warning(f"Symlink for '{symlink_prefix}' not found or not a symlink. Cannot remove it.")
 
     def _process_folder_xml(self, xml_file: Path) -> None:
-        pass
+        # Parse XML
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+        for folder in root.findall("Folder"):
+            name = self._expand_var(folder.get("name"))
+
+            # Make sure this is supposed to be ran in the user context
+            if folder.get("userContext") != "1":
+                logger.warning(f"Only supporting Folder actions ran within the user context. Skipping '{name}'")
+                return
+
+            # Make sure there are no weird attributes
+            is_hidden = folder.get("hidden") == "1"
+            is_archive = folder.get("archive") == "1"
+            if is_hidden or is_archive:
+                logger.warning(f"Unsupported Folder attributes hidden='{is_hidden}' archive='{is_archive}' for '{name}'. Skipping.")
+                return
+
+            props = folder.find("Properties")
+            action = props.get("action")
+            path = self._expand_var(props.get("path"))
+            if action in ("C", "U"):
+                self._create_folder(path)
+            elif action == "D":
+                self._delete_folder(path)
+            elif action == "R":
+                self._delete_folder(path)
+                self._create_folder(path)
+            else:
+                logger.warning(f"Unsupported Folder action='{action}' for '{name}'. Skipping.")
+                return
+
+    def _smb_exists(self, path: str) -> bool:
+        try:
+            smbclient.stat(path)
+            return True
+        except SMBOSError as e:
+            if e.ntstatus == NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
+                return False
+            else:
+                logger.error(f"Error checking existence of UNC path '{path}': {e}")
+                raise e
+
+    def _create_folder(self, path: str) -> None:
+        # Check if it's a UNC path
+        if path.startswith("\\\\"):
+            logger.info(f"Creating UNC folder '{path}'")
+            # Extract server portion
+            server=path.split("\\")[2]
+            os.environ["KRB5CCNAME"] = f"FILE:/tmp/krb5cc_250201111_38ooJY"
+            smbclient.register_session(server)
+            if not self._smb_exists(path):
+                smbclient.makedirs(path)
+                logger.info(f"Created UNC folder '{path}'")
+            else:
+                logger.info(f"UNC folder '{path}' already exists")
+            smbclient.delete_session(server)
+            return
+        # Check if starts with a drive letter
+        elif re.match(r"^[a-zA-Z]:\\", path):
+            logger.warning(f"Skipping creation of drive-letter-based path '{path}'")
+            return
+        else:
+            logger.warning(f"Unsupported path format '{path}'. Skipping.")
+            return
+
+    def _delete_folder(self, path: str) -> None:
+        # Check if it's a UNC path
+        if path.startswith("\\\\"):
+            logger.info(f"Creating UNC folder '{path}'")
+            # Extract server portion
+            server=path.split("\\")[2]
+            os.environ["KRB5CCNAME"] = f"FILE:/tmp/krb5cc_250201111_38ooJY"
+            smbclient.register_session(server)
+            if self._smb_exists(path):
+                smbclient.rmdir(path)
+                logger.info(f"Deleted UNC folder '{path}'")
+            else:
+                logger.info(f"UNC folder '{path}' already deleted")
+            smbclient.delete_session(server)
+            return
+        # Check if starts with a drive letter
+        elif re.match(r"^[a-zA-Z]:\\", path):
+            logger.warning(f"Skipping creation of drive-letter-based path '{path}'")
+            return
+        else:
+            logger.warning(f"Unsupported path format '{path}'. Skipping.")
+            return
+
+    def _expand_var(self, var: str) -> str:
+        var = var.replace(r"%LogonUser%", self.cur_user.username)
+        return var
+
+
 
 class DC:
     def __init__(self):
@@ -365,9 +754,18 @@ class DC:
     def connect(self):
         server = Server(f'ldap://{self.dc}', get_info=ALL)
         conn = Connection(server, authentication=SASL, sasl_mechanism=GSSAPI)
-        conn.bind()
+        try:
+            conn.bind()
+        except GSSError as e:
+            if KRB5KRB_AP_ERR_TKT_EXPIRED == e.min_code:
+                logger.error("Kerberos ticket expired. Please renew your ticket with 'kinit' and try again.")
+                raise e
+            else:
+                raise e
 
         self.ldap = MyLdap(ldap_server=server, ldap_session=conn)
+
+KRB5KRB_AP_ERR_TKT_EXPIRED = 2529638944
 
 if __name__ == "__main__":
     logger.info(f"Starting AD Drive Mount for: {env.get('USER')}")
