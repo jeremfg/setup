@@ -11,14 +11,14 @@ from os import environ as env
 
 import re
 import socket
-import subprocess
+import subprocess  # nosec B404
 import time
-from typing import Optional
+from typing import Any
 from ldap3 import Server, Connection, SASL, GSSAPI, ALL
 import urllib.parse
 import os
 import pwd as _pwd
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405
 import smbclient
 import sys
 from gssapi.exceptions import GSSError
@@ -74,7 +74,7 @@ class User:
             self.sid
         )  # Could match the user SID itself and not just a group.
 
-        self._cur_kerberos_cache: Optional[str] = None
+        self._cur_kerberos_cache: str | None = None
 
     @property
     def kerberos_cache(self) -> str:
@@ -85,7 +85,7 @@ class User:
 
         latest_mtime = 0.0
         latest_ccfile = None
-        for _ccfile in Path("/tmp").glob(f"krb5cc_{self.uid}_*"):
+        for _ccfile in Path("/tmp").glob(f"krb5cc_{self.uid}_*"):  # nosec B108
             if not _ccfile.is_file():
                 continue
             try:
@@ -98,7 +98,7 @@ class User:
             if latest_mtime < mtime or latest_mtime == 0.0:
                 try:
                     cmd = ["klist", "-s", "-c", f"FILE:{_ccfile}"]
-                    subprocess.run(cmd, check=True)
+                    subprocess.run(cmd, check=True, shell=False)  # nosec B603
                 except subprocess.CalledProcessError as e:
                     if e.returncode == 1:
                         logger.warning(f"Kerberos cache file '{_ccfile}' is expired")
@@ -196,7 +196,7 @@ class SysvolCache:
             )
 
         # Cache some values
-        self._cur_user: Optional[User] = None
+        self._cur_user: User | None = None
 
         # Precompile regex to extract GPO ID from XML file paths
         e_path = re.escape(str(self.cache_path))
@@ -276,7 +276,7 @@ class SysvolCache:
             )
             return False
 
-        # First, check if we are explicitely denied by this policy
+        # First, check if we are explicitly denied by this policy
         for ace in applicables:
             if self._is_deny(ace):
                 logger.info(
@@ -284,7 +284,7 @@ class SysvolCache:
                 )
                 return False
 
-        # Then check if we are explicitely allowed by this policy
+        # Then check if we are explicitly allowed by this policy
         for ace in applicables:
             if self._is_allow(ace):
                 logger.info(
@@ -373,12 +373,14 @@ class SysvolCache:
     def _process_drive_xml(self, xml_file: Path) -> None:
         """Processes a Drives.xml file and applies the specified drive actions."""
 
-        tree = ET.parse(xml_file)
+        tree = ET.parse(xml_file)  # nosec B314
         root = tree.getroot()
         for drive in root.findall("Drive"):
             name = drive.get("name")
             if name is None:
-                raise ValueError(f"Drive element missing 'name' attribute in '{xml_file}'")
+                raise ValueError(
+                    f"Drive element missing 'name' attribute in '{xml_file}'"
+                )
             name = self._expand_var(name)
             if drive.get("userContext") != "1":
                 logger.warning(
@@ -387,7 +389,9 @@ class SysvolCache:
                 continue
             props = drive.find("Properties")
             if props is None:
-                raise ValueError(f"Drive element missing 'Properties' element in '{xml_file}'")
+                raise ValueError(
+                    f"Drive element missing 'Properties' element in '{xml_file}'"
+                )
             if props.get("allDrives") != "NOCHANGE":
                 logger.warning(
                     f"Unsupported Drive property allDrives='{props.get('allDrives')}' for '{name}'. Skipping."
@@ -403,15 +407,21 @@ class SysvolCache:
             action = props.get("action")
             path = props.get("path")
             if not path:
-                raise ValueError(f"Drive element missing 'path' property in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Drive element missing 'path' property in '{xml_file}' for '{name}'"
+                )
             path = self._expand_var(path)
             label = props.get("label")
             if not label:
-                raise ValueError(f"Drive element missing 'label' property in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Drive element missing 'label' property in '{xml_file}' for '{name}'"
+                )
             label = self._expand_var(label)
             letter = props.get("letter")
             if not letter:
-                raise ValueError(f"Drive element missing 'letter' property in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Drive element missing 'letter' property in '{xml_file}' for '{name}'"
+                )
             is_persistent = props.get("persistent") == "1"
 
             if use_letter and len(letter) > 0:
@@ -534,9 +544,12 @@ class SysvolCache:
         gvfs_file = Gio.File.new_for_uri(smb_url)
 
         loop = GLib.MainLoop()
-        result_holder: dict[str, Optional[BaseException | bool]] = {"error": None, "done": False}
+        result_holder: dict[str, BaseException | bool | None] = {
+            "error": None,
+            "done": False,
+        }
 
-        def mount_done(source, result, user_data):  # ignore[no-untyped-def]
+        def mount_done(source: Any, result: Any, user_data: Any) -> None:
             try:
                 source.mount_enclosing_volume_finish(result)
                 logger.info(f"Mount operation for '{smb_url}' completed successfully")
@@ -566,36 +579,46 @@ class SysvolCache:
         loop.run()
 
         if result_holder["error"]:
-            if not isinstance(result_holder["error"], GLib.Error):
-                raise result_holder["error"]
-            if result_holder["error"].code == Gio.IOErrorEnum.ALREADY_MOUNTED:
+            if isinstance(result_holder["error"], GLib.Error):
                 logger.warning(f"SMB URL '{smb_url}' is already mounted")
-            else:
+            elif isinstance(result_holder["error"], BaseException):
                 raise result_holder["error"]
+            else:
+                raise Exception(
+                    f"Unknown error while mounting SMB URL '{smb_url}': {result_holder['error']}"
+                )
 
         # Wait for the mount to appear in gvfs
         mount_point = None
         gvfs_mount = gvfs_file.find_enclosing_mount(None)
         if gvfs_mount:
-            path = Path(gvfs_mount.get_root().get_path())
+            candidate_path = Path(gvfs_mount.get_root().get_path())
             wait_time = 10  # seconds
             step = 0.1  # 100 ms
             i = wait_time / step
             while i > 0:
                 try:
-                    if path.is_dir():
-                        mount_point = path
+                    if candidate_path.is_dir():
+                        mount_point = candidate_path
                         logger.info(f"Mount point found for '{smb_url}'")
                         break
                 except OSError as e:
-                    if e.errno == 5:  # I/O error, often happens when the mount is not fully ready
+                    if (
+                        e.errno == 5
+                    ):  # I/O error, often happens when the mount is not fully ready
                         logger.warning(f"OSError no 5 waiting for mount: {path}")
                         pass
-                    elif e.errno == 22:  # Invalid argument, can happen if the path is not yet fully available
-                        logger.error(f"OSError no 22 waiting for mount: {path}. The mount is probably broken.")
+                    elif (
+                        e.errno == 22
+                    ):  # Invalid argument, can happen if the path is not yet fully available
+                        logger.error(
+                            f"OSError no 22 waiting for mount: {path}. The mount is probably broken."
+                        )
                         pass
                     else:
-                        logger.error(f"Error checking mount point for '{smb_url}': {str(e)}")
+                        logger.error(
+                            f"Error checking mount point for '{smb_url}': {str(e)}"
+                        )
                         raise e
                 i -= 1
                 time.sleep(step)
@@ -694,9 +717,12 @@ class SysvolCache:
         # Unmount only if there are no other symlinks pointing to the mount point
         if gvfs_mount and sym_count == 0:
             loop = GLib.MainLoop()
-            result_holder = {"error": None, "done": False}
+            result_holder: dict[str, BaseException | bool | None] = {
+                "error": None,
+                "done": False,
+            }
 
-            def done_cb(source, result, user_data):  # ignore[no-untyped-def]
+            def done_cb(source: Any, result: Any, user_data: Any) -> None:
                 try:
                     source.unmount_with_operation_finish(result)
                     logger.info(
@@ -727,14 +753,16 @@ class SysvolCache:
             )  # Set a timeout for the unmount operation
             loop.run()
             if result_holder["error"]:
-                if not isinstance(result_holder["error"], GLib.Error):
-                    raise result_holder["error"]
-                if result_holder["error"].code == Gio.IOErrorEnum.NOT_MOUNTED:
+                if isinstance(result_holder["error"], GLib.Error):
                     logger.warning(
                         f"SMB URL '{smb_url}' is not mounted according to gvfs"
                     )
-                else:
+                elif isinstance(result_holder["error"], BaseException):
                     raise result_holder["error"]
+                else:
+                    raise Exception(
+                        f"Unknown error while unmounting SMB URL '{smb_url}': {result_holder['error']}"
+                    )
         else:
             logger.warning(
                 f"Not unmounting SMB URL '{smb_url}' because there are still {sym_count} symlinks pointing to it"
@@ -753,12 +781,14 @@ class SysvolCache:
         """Processes a Folders.xml file and applies the specified folder actions."""
 
         # Parse XML
-        tree = ET.parse(xml_file)
+        tree = ET.parse(xml_file)  # nosec B314
         root = tree.getroot()
         for folder in root.findall("Folder"):
             name = folder.get("name")
             if not name:
-                raise ValueError(f"Folder element missing 'name' attribute in '{xml_file}'")
+                raise ValueError(
+                    f"Folder element missing 'name' attribute in '{xml_file}'"
+                )
             name = self._expand_var(name)
 
             # Make sure this is supposed to be ran in the user context
@@ -779,13 +809,19 @@ class SysvolCache:
 
             props = folder.find("Properties")
             if props is None:
-                raise ValueError(f"Folder element missing 'Properties' element in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Folder element missing 'Properties' element in '{xml_file}' for '{name}'"
+                )
             action = props.get("action")
             if action is None:
-                raise ValueError(f"Folder Properties missing 'action' attribute in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Folder Properties missing 'action' attribute in '{xml_file}' for '{name}'"
+                )
             path = props.get("path")
             if path is None:
-                raise ValueError(f"Folder Properties missing 'path' attribute in '{xml_file}' for '{name}'")
+                raise ValueError(
+                    f"Folder Properties missing 'path' attribute in '{xml_file}' for '{name}'"
+                )
             path = self._expand_var(path)
             if action in ("C", "U"):
                 self._create_folder(path)
@@ -877,7 +913,7 @@ class DC:
 
         self.domain = self.__get_domain()
         self.dc = self.__get_closest_dc()
-        self.ldap: Optional[MyLdap] = None
+        self.ldap: MyLdap | None = None
 
     def is_valid_fqdn(self, fqdn: str) -> bool:
         """Validates if the given string is a valid Fully Qualified Domain Name (FQDN) according to RFC 1035."""
@@ -900,8 +936,12 @@ class DC:
     def __get_domain(self) -> str:
         """Retrieves the AD domain name."""
 
-        domain = subprocess.run(
-            ["realm", "list", "--name-only"], check=True, capture_output=True, text=True
+        domain = subprocess.run(  # nosec B607
+            ["realm", "list", "--name-only"],
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,  # nosec B603
         ).stdout.strip()
         if not self.is_valid_fqdn(domain):
             raise ValueError(f"Invalid domain name: {domain}")
@@ -914,7 +954,11 @@ class DC:
         # Retrieve the list of DCs for the domain using DNS SRV records
         query = ["host", "-t", "SRV", f"_ldap._tcp.{self.domain}"]
         result = subprocess.run(
-            query, check=True, capture_output=True, text=True
+            query,
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,  # nosec B603
         ).stdout.splitlines()
         dc_list = []
         for line in result:
@@ -933,7 +977,11 @@ class DC:
         # Retrieve the local default interface
         query = ["ip", "route", "get", "1"]
         result2 = subprocess.run(
-            query, check=True, capture_output=True, text=True
+            query,
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,  # nosec B603
         ).stdout.strip()
         local_interface = None
         parts = result2.split()
@@ -948,7 +996,11 @@ class DC:
         # Retrieve IP and netmask for that interface
         query = ["ip", "-o", "-f", "inet", "addr", "show", "dev", local_interface]
         result3 = subprocess.run(
-            query, check=True, capture_output=True, text=True
+            query,
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,  # nosec B603
         ).stdout.strip()
         ip_address = None
         netmask = None
@@ -978,7 +1030,11 @@ class DC:
                 continue
 
             # Is this DC reachable? Test with ping
-            ping_result = subprocess.run(["ping", "-c", "1", dc_ip], check=False)
+            ping_result = subprocess.run(  # nosec B607
+                ["ping", "-c", "1", dc_ip],
+                check=False,
+                shell=False,  # nosec B603
+            )
             if ping_result.returncode == 0:
                 if favored_dc is None:
                     favored_dc = dc

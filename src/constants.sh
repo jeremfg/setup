@@ -34,7 +34,7 @@ CN_ROOT=$(cd -P "$(dirname "${CN_SOURCE}")" >/dev/null 2>&1 && pwd)
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
   # This script was piped
   echo "This script cannot be piped"
-  return 1 2>/dev/null || exit 1
+  return 1
 elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   # This script was sourced
   :
@@ -43,5 +43,3 @@ else
   echo "This script cannot be executed"
   exit 1
 fi
-
-

@@ -33,7 +33,7 @@ extrepo_install() {
 extrepo_enable() {
   local repo="$1"
   logDebug "Enabling extrepo repo: ${repo}"
-  
+
   if [[ -z "${repo}" ]]; then
     logError "Missing repo name for extrepo_enable"
     return 1

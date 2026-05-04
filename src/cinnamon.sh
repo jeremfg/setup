@@ -113,35 +113,33 @@ cn_set_windows_look() {
     logDebug "Successfully configured Cinnamon animations settings"
   fi
 
-# -----------------------------
+  # -----------------------------
   # ⌨️ KEYBINDINGS (Windows familiarity)
   # -----------------------------
-  if ! cn_set "$w11_dconf" "org.cinnamon.desktop.keybindings.wm" "show-desktop" "['<Super>d']" false; then
+  if ! cn_set "${w11_dconf}" "org.cinnamon.desktop.keybindings.wm" "show-desktop" "['<Super>d']" false; then
     logError "Failed to configure Cinnamon show-desktop keybinding"
     return 1
-  # elif ! cn_set "$w11_dconf" "org.cinnamon.desktop.keybindings.wm" "toggle-menu" "['Super_L']" true; then
+  # elif ! cn_set "${w11_dconf}" "org.cinnamon.desktop.keybindings.wm" "toggle-menu" "['Super_L']" true; then
   #   logError "Failed to configure Cinnamon toggle-menu keybinding"
   #   return 1
   else
     logDebug "Successfully configured Cinnamon keybindings"
   fi
 
-
   # -----------------------------
   # 🔄 ALT-TAB (modern but not restrictive)
   # -----------------------------
-  if ! cn_set "$w11_dconf" "org.cinnamon" "alttab-switcher-style" "'thumbnails'" false; then
+  if ! cn_set "${w11_dconf}" "org.cinnamon" "alttab-switcher-style" "'thumbnails'" false; then
     logError "Failed to configure Cinnamon ALT-TAB switcher style"
     return 1
   else
     logDebug "Successfully configured Cinnamon ALT-TAB switcher style"
   fi
 
-
   # -----------------------------
   # 🕒 CLOCK (Windows default style)
   # -----------------------------
-  if ! cn_set "$w11_dconf" "org.cinnamon.desktop.interface" "clock-use-24h" "true" false; then
+  if ! cn_set "${w11_dconf}" "org.cinnamon.desktop.interface" "clock-use-24h" "true" false; then
     logError "Failed to configure Cinnamon clock style"
     return 1
   else
@@ -215,19 +213,21 @@ cn_set() {
   local schema_path="${schema//./\/}"
 
   # Current user and session for applying local settings
-  local cur_user=$(whoami)
+  local cur_user
+  cur_user=$(whoami)
   if [[ -z "${cur_user}" ]]; then
     logError "Failed to determine current user for LightDM dconf settings"
     return 1
   fi
-  local sess="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u ${cur_user})/bus"
+  local sess
+  sess="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u "${cur_user}")/bus"
 
   # Read current value
   local value_pre value_res value_reload value_set
   value_pre=$(gsettings get "${schema}" "${key}" 2>/dev/null || true)
 
   # Reset and set the value
-  if ! sudo -u ${cur_user} ${sess} dconf reset "/${schema_path}/${key}"; then
+  if ! sudo -u "${cur_user}" "${sess}" dconf reset "/${schema_path}/${key}"; then
     logError "Failed to reset dconf setting ${schema}.${key} before applying new value"
     return 1
   elif ! value_res=$(gsettings get "${schema}" "${key}" 2>/dev/null || true); then
@@ -242,7 +242,7 @@ cn_set() {
   elif ! value_reload=$(gsettings get "${schema}" "${key}" 2>/dev/null || true); then
     logError "Failed to read back dconf setting ${schema}.${key} after database update"
     return 1
-  elif ! sudo -u ${cur_user} ${sess} gsettings set "${schema}" "${key}" "${value}"; then
+  elif ! sudo -u "${cur_user}" "${sess}" gsettings set "${schema}" "${key}" "${value}"; then
     logError "Failed to set dconf setting ${schema}.${key} to value ${value}"
     return 1
   elif ! value_set=$(gsettings get "${schema}" "${key}" 2>/dev/null || true); then
@@ -371,13 +371,13 @@ db_determine_lock_file() {
   local __resultvar="$1"
   local file_path="$2"
 
-  local name sname num __lock_file
+  local name sname __lock_file
   name=$(basename "${file_path}")
   # Validate name, and extract without numbered prefix
   if [[ "${name}" =~ ^[0-9]+-(.+)$ ]]; then
     sname="${BASH_REMATCH[1]}"
   elif [[ "${name}" =~ ^([0-9]+)-.+$ ]]; then
-    num="${BASH_REMATCH[1]}"
+    : # num="${BASH_REMATCH[1]}"
   else
     logError "Invalid dconf config file name: ${name}, expected format: NN-name"
     return 1
@@ -385,7 +385,7 @@ db_determine_lock_file() {
 
   # Lock file
   __lock_file="$(dirname "${file_path}")/locks/${sname}"
-  eval "$__resultvar='${__lock_file}'"
+  eval "${__resultvar}='${__lock_file}'"
 
   return 0
 }
@@ -487,4 +487,3 @@ else
   # This script was executed
   logFatal "This script cannot be executed"
 fi
-
