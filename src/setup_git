@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# This interactive script is the entry point for setting up an environemnt
+# This interactive script is the entry point for setting up an environment
 # using git as a source. As such, this script is intended to exist
 # standalone without any dependencies. It is designed to be used
 # as a helper in one-liner setup calls like those piped directly from wget.
 #
 # Conceptually, this script is idempotent, can be called multiple times and will only
-# apply the changes not applied during prior executions. Aslo, this script strives in making sure
+# apply the changes not applied during prior executions. Also, this script strives in making sure
 # no permanent changes to the system are made, outside of checking out the specified repository.
 #
 # Example usage:
@@ -159,7 +159,7 @@ sg_clone_repository() {
         fi
         ;;
       2)
-        sg_print "Unrecoverable error occured when trying to connect via SSH"
+        sg_print "Unrecoverable error occurred when trying to connect via SSH"
         return 1
         ;;
       *)
@@ -365,7 +365,7 @@ SG_AGENT_STARTED=""
 
 # The code below shouldn't be here, but is needed to keep this file
 # independent and standalone. True libraries import this setup
-# file to keep good code re-use practices.
+# file to keep good code reuse practices.
 
 # Global variables
 SG_ENV_FILE_BACKUP="/tmp/backup.env"
@@ -382,7 +382,7 @@ sg_var_backup() {
 # Restore previously backed up environment variables
 #
 # Returns:
-#   0: If variables were restored succesfully
+#   0: If variables were restored successfully
 #   1: If backup was not found
 sg_var_restore() {
   if [[ ! -f "${SG_ENV_FILE_BACKUP}" ]]; then
@@ -539,7 +539,7 @@ sg_pkg_install_from() {
   local res
   # Check which packages need to be installed
   for cur_pkg in "$@"; do
-    sg_print "Checking if package \"${cur_pkg}\" is alread installed: ${fct_is_installed}"
+    sg_print "Checking if package \"${cur_pkg}\" is already installed: ${fct_is_installed}"
     eval "${fct_is_installed}" "\"${repo}\"" "\"${cur_pkg}\""
     res=$?
     if [[ ${res} -eq 1 ]]; then
@@ -634,6 +634,7 @@ sg_pkg_is_installed_debian() {
     return 2
   fi
 
+  # shellcheck disable=SC2312
   if dpkg-query -W -f='${Status}' "${cur_pkg}" 2>/dev/null | grep -q "install ok installed"; then
     res=0
   else
@@ -708,7 +709,7 @@ sg_pkg_install_debian() {
 #   $1[in]: Absolute file path where the key shall be stored
 # Returns:
 #   0: If a key was selected (See $1)
-#   1: If an error occured, and we must proceed without a key
+#   1: If an error occurred, and we must proceed without a key
 sg_ssh_paste_key() {
   local _prv_key="$1"
 
@@ -879,7 +880,7 @@ sg_ssh_test_connection() {
   res2=$(ssh -o StrictHostKeyChecking=no -T "${_test_url%:*}" 2>&1)
   res=$?
   if [[ ${res} -eq 255 ]]; then
-    sg_print "SSH connexion denied: ${res2}"
+    sg_print "SSH connection denied: ${res2}"
     res=1
   elif [[ ${res} -eq 1 ]]; then
     # Inspect the error message
@@ -894,7 +895,7 @@ sg_ssh_test_connection() {
     sg_print "Connection successful: ${res2}"
     res=0
   else
-    sg_print "Unkown SSH connection error: ${res} - ${res2}."
+    sg_print "Unknown SSH connection error: ${res} - ${res2}."
     res=2
   fi
 
@@ -905,7 +906,7 @@ sg_ssh_test_connection() {
 # Add a trap function to be called on process exit
 # This is typically used for cleanup functions
 #
-# Paramters:
+# Parameters:
 #   $1[in]: Function to call
 # Returns:
 #   0: Function added or was already registered

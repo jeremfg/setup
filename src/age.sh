@@ -36,6 +36,7 @@ age_install() {
   fi
 
   # Make sure bindir is in the PATH
+  # shellcheck disable=SC1091
   if ! source "${HOME}/.profile"; then
     logError "Failed to source ~/.profile to update PATH"
     return 1
@@ -70,8 +71,6 @@ age_install() {
       fi
     fi
   done
-
-
 
   # Confirm age is working
   if ! command -v age &>/dev/null; then
@@ -269,5 +268,5 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  logFatal "This script cannot be exceuted"
+  logFatal "This script cannot be executed"
 fi

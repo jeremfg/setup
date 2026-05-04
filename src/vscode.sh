@@ -23,11 +23,12 @@ vscode_install() {
   logInfo "Installing VS Code..."
 
   # Install dependencies
+  # shellcheck disable=SC2312
   if ! pkg_install wget gpg apt-transport-https; then
     logError "Failed to install VS Code dependencies"
     return 1
   # Add Microsoft GPG key
-  elif ! wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > "${SETUP_TMP_DIR}/packages.microsoft.gpg"; then
+  elif ! wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor >"${SETUP_TMP_DIR}/packages.microsoft.gpg"; then
     logError "Failed to download Microsoft GPG key"
     return 1
   elif ! sudo install -D -o root -g root -m 644 "${SETUP_TMP_DIR}/packages.microsoft.gpg" "${SETUP_APT_KEYRING_DIR}/packages.microsoft.gpg"; then
@@ -38,8 +39,8 @@ vscode_install() {
   rm -f "${SETUP_TMP_DIR}/packages.microsoft.gpg"
 
   # Add VS Code repository
-  echo "deb [arch=amd64,arm64,armhf signed-by=${SETUP_APT_KEYRING_DIR}/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | \
-    sudo tee "${SETUP_APT_SOURCES_DIR}/vscode.list" > /dev/null
+  echo "deb [arch=amd64,arm64,armhf signed-by=${SETUP_APT_KEYRING_DIR}/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |
+    sudo tee "${SETUP_APT_SOURCES_DIR}/vscode.list" >/dev/null
 
   # Update package cache and install
   if ! sudo apt-get update; then

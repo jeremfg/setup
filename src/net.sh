@@ -239,7 +239,7 @@ nu_file_download() {
       return 1
       ;;
     *)
-      logError "Error ${_code} occured while checking for file${IFS}${_res}"
+      logError "Error ${_code} occurred while checking for file${IFS}${_res}"
       return 1
       ;;
     esac
@@ -258,7 +258,7 @@ nu_file_download() {
       return 0
       ;;
     *)
-      logError "Error ${_code} occured while downloading file${IFS}${_res}"
+      logError "Error ${_code} occurred while downloading file${IFS}${_res}"
       return 1
       ;;
     esac
@@ -606,5 +606,5 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  logFatal "This script cannot be exceuted"
+  logFatal "This script cannot be executed"
 fi

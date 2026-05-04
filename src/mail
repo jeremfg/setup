@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 #
 # This script configures the MTA to send emails
-# Currenly supports the following:
+# Currently supports the following:
 #  - mailx
 #  - ssmtp
 #
@@ -215,7 +215,7 @@ if [[ \$? -ne 0 ]]; then
   logError "Failed to send test email"
   exit 1
 else
-  logInfo "Test email sent succesfully"
+  logInfo "Test email sent successfully"
 fi
 
 EOF
@@ -269,7 +269,7 @@ mail_test() {
     logError "Failed to send test email"
     return 1
   else
-    logInfo "Test email sent succesfully"
+    logInfo "Test email sent successfully"
   fi
 
   return 0
@@ -428,7 +428,7 @@ mail_parse() {
 
   # Handle piped arguments
   if [[ -n "${MX_PIPED_ARG}" ]]; then
-    logInfo "Piped argument detected: ${MX_PIPED_ARG}. Overwirting body..."
+    logInfo "Piped argument detected: ${MX_PIPED_ARG}. Overwriting body..."
     MAIL_BODY="${MX_PIPED_ARG}"
   fi
 
@@ -460,7 +460,7 @@ mail_parse() {
 
 mail_print_usage() {
   cat <<EOF
-This script configures the MTA and provices an example script to test emails
+This script configures the MTA and provides an example script to test emails
 
 Usage: ${MX_ME} configure <client_config> <mta_config>
        ${MX_ME} test <dest> [-s <subject>] [-b <body>]

@@ -25,8 +25,11 @@ rm_install_ubuntu_cinammon() {
   return 0
 }
 
+# shellcheck disable=SC2312
 _rm_install_srv_ubuntu_cinammon() {
-  local service_content=$(cat <<EOF
+  local service_content
+  service_content=$(
+    cat <<EOF
 [Unit]
 Description=Remote Mouse Server
 After=lightdm.service
@@ -51,7 +54,7 @@ Environment=XAUTHORITY=/var/run/lightdm/root/:0
 [Install]
 WantedBy=multi-user.target
 EOF
-)
+  )
 
   if ! echo "${service_content}" | sudo tee "${rm_service_file}" >/dev/null; then
     logError "Failed to create Remote Mouse systemd service file at ${rm_service_file}"

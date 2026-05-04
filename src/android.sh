@@ -42,10 +42,11 @@ android_install() {
   fi
 
   local release_url
-  release_url=$(curl -sL "${ANDROID_SCRCPY_RELEASE_API_URL}" \
-    | grep -Eo "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${ANDROID_SCRCPY_TARBALL_REGEX}\"" \
-    | head -n 1 \
-    | cut -d '"' -f 4)
+  # shellcheck disable=SC2312
+  release_url=$(curl -sL "${ANDROID_SCRCPY_RELEASE_API_URL}" |
+    grep -Eo "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${ANDROID_SCRCPY_TARBALL_REGEX}\"" |
+    head -n 1 |
+    cut -d '"' -f 4)
 
   if [[ -z "${release_url}" ]]; then
     logError "Failed to resolve latest scrcpy release URL"
@@ -119,6 +120,7 @@ adb_connect() {
   adb connect "${phone_dns}:${phone_port}" &>/dev/null
 
   # Check if TCP/IP connection worked
+  # shellcheck disable=SC2312
   if ! adb devices | grep -w "device" | grep -q "${phone_dns}:${phone_port}"; then
     logWarn "TCP/IP connection failed"
 
@@ -126,6 +128,7 @@ adb_connect() {
       logInfo "Checking for USB connection..."
 
       # Check if device is connected via USB
+      # shellcheck disable=SC2312
       if adb devices | grep -w "device" | grep -q "${phone_serial}"; then
         logInfo "Found device via USB (${phone_serial}), enabling TCP/IP mode on port ${phone_port}..."
         adb -s "${phone_serial}" tcpip "${phone_port}"
@@ -137,6 +140,7 @@ adb_connect() {
         adb connect "${phone_dns}:${phone_port}"
 
         # Check if it worked
+        # shellcheck disable=SC2312
         if ! adb devices | grep -w "device" | grep -q "${phone_dns}:${phone_port}"; then
           logError "Failed to connect via TCP/IP after enabling it"
           return 1

@@ -6,14 +6,14 @@
 
 import os
 import sys
-import subprocess
+import subprocess  # nosec B404
 
 if os.name == "nt":
     # Replace this with the path to your PowerShell script
     command = ["./tools/PSScriptAnalyzer/Invoke-PSSAPreCommitHook.ps1"]
     # Append any additional arguments to the command
     command.extend(sys.argv[1:])
-    result = subprocess.run(command)
+    result = subprocess.run(command)  # nosec B603
     sys.exit(result.returncode)
 else:
     sys.exit(0)

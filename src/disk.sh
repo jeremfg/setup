@@ -439,7 +439,7 @@ disk_get_available() {
   return 0
 }
 
-# Retrieve indentifying information about a drive
+# Retrieve identifying information about a drive
 #
 # Parameters:
 #   $1[out]: path to the device
@@ -499,7 +499,7 @@ disk_get_info() {
 # Creates a new partition on space left unused on a drive
 #
 # Parameters:
-#   $1[out]: The creted loop device
+#   $1[out]: The created loop device
 #   $2[in]: The drive on which to create the partition
 #   $3[in]: The start sector
 #   $4[in]: The number of sectors
@@ -571,7 +571,7 @@ disk_create_raid1() {
 #
 # Parameters:
 #   $1[in]: Drive to be assembled
-#   $2[in]: First drive part pf the array
+#   $2[in]: First drive part of the array
 #   $3[in]: Second drive part of the array
 # Returns:
 #   0: Success
@@ -593,7 +593,7 @@ disk_assemble_radi1() {
 
     # Confirm array state
     __res2=$(echo "${__res1}" | grep 'State :' | awk '{print $3}' || true)
-    # Swallow a possible trailing comma. Exemple: "clean, resyncing"
+    # Swallow a possible trailing comma. Example: "clean, resyncing"
     __res2=${__res2%,}
     case ${__res2} in
     clean)
@@ -605,7 +605,7 @@ disk_assemble_radi1() {
       if [[ ${__res2} -eq 1 ]]; then
         logInfo "Array has only 1 member device. Known situation. Stopping the array..."
         # This occurs when the OS automounts on startup.
-        # while only one drive is available. A typical scneario in our use case, because the
+        # while only one drive is available. A typical scenario in our use case, because the
         # loop device for DRIVE2 is not created until later. We just need to stop this array
         # and reassemble it ourselves.
         if ! sh_exec "" mdadm --stop "/dev/${drive}"; then
@@ -624,7 +624,7 @@ disk_assemble_radi1() {
       fi
       ;;
     *)
-      logWarn "Array is in an unkown state: ${__res2}"
+      logWarn "Array is in an unknown state: ${__res2}"
       return 1
       ;;
     esac
@@ -736,7 +736,7 @@ disk_remove_loop() {
     logError "Failed to remove loop device"
     return 1
   else
-    logInfo "Loop device ${loop} was removed succssfully"
+    logInfo "Loop device ${loop} was removed successfully"
   fi
 
   return 0
@@ -816,5 +816,5 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  logFatal "This script cannot be exceuted"
+  logFatal "This script cannot be executed"
 fi

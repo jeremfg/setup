@@ -44,7 +44,6 @@ vlc_add_blu_ray_support() {
   return 0
 }
 
-
 vlc_add_java() {
   logInfo "Adding Java support to VLC media player for Blu-ray support"
 
@@ -82,13 +81,17 @@ vlc_add_java() {
   logInfo "Configuring JAVA_HOME to \"${java_home}\" for BD-J support in VLC media player"
 
   # Add JAVA_HOME to global environment
-  local file_ct=$(cat <<EOF
+  local file_ct
+  file_ct=$(
+    cat <<EOF
 # Installed by jeremfg/setup src/bluray.sh to add Java support for BD-J in VLC media player
 export JAVA_HOME="${java_home}"
 export PATH="\${JAVA_HOME}/bin:\${PATH}"
 EOF
-)
+  )
+
   local env_file="/etc/profile.d/vlc-bluray-java.sh"
+  # shellcheck disable=SC1090
   if ! echo "${file_ct}" | sudo tee "${env_file}" >/dev/null; then
     logError "Failed to create environment variable file for Java support in VLC media player at ${env_file}"
     return 1

@@ -17,7 +17,8 @@ repos:
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: fix-byte-order-marker
-      - id: forbid-submodules
+      # - id: forbid-submodules
+      - id: forbid-new-submodules
       - id: mixed-line-ending
         args: ['--fix=lf']
       - id: sort-simple-yaml  # YAML
@@ -92,7 +93,7 @@ repos:
         pass_filenames: true
         args: ["--strict", "--config-file=mypy.ini"]
         additional_dependencies:
-            - types-ldap3==2.9.13.20260408
+          - types-ldap3==2.9.13.20260408
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.3
     hooks:

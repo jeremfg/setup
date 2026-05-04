@@ -61,7 +61,7 @@ ldm_set_setting() {
   if ! grep -E "^[#]?\s*${setting}=" "${dm_file}" >/dev/null; then
     logError "LightDM setting not found in config file: ${setting}"
     return 1
-  elif [[ $(grep -E "^[#]?\s*${setting}=" "${dm_file}" | wc -l) -gt 1 ]]; then
+  elif [[ "$(grep -c -E "^[#]?\s*${setting}=" "${dm_file}" || true)" -gt 1 ]]; then
     logError "Multiple lines found for LightDM setting: ${setting}"
     return 1
   fi

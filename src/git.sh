@@ -119,7 +119,8 @@ EOF
 
   # Apply configurations to all submodules
   local submodule_cmd
-  submodule_cmd=$(cat <<'EOF'
+  submodule_cmd=$(
+    cat <<'EOF'
 cur_user=$(git config user.name)
 cur_email=$(git config user.email)
 
@@ -148,7 +149,7 @@ if [ "${push_default}" != "simple" ]; then
   fi
 fi
 EOF
-)
+  )
   export GIT_SUBMODULE_USER="${user}"
   export GIT_SUBMODULE_EMAIL="${email}"
   if ! git submodule foreach "${submodule_cmd}"; then
@@ -181,9 +182,9 @@ git_find_root() {
 # Configure git for SSH access. This is an interactive function
 #
 # Parameters:
-#   $1[in] URL to the git server. If none provided, Github is assuenmd
+#   $1[in] URL to the git server. If none provided, Github is assumed
 # Returns:
-#   0: If SSH access was succesfully configured
+#   0: If SSH access was successfully configured
 #   1: If SSH configuration failed
 # shellcheck disable=SC2120
 git_ssh_config() {
@@ -236,7 +237,7 @@ git_ssh_config() {
       fi
       ;;
     2)
-      logError "Unrecoverable error occured when trying to connect via SSH"
+      logError "Unrecoverable error occurred when trying to connect via SSH"
       break
       ;;
     *)
@@ -250,7 +251,7 @@ git_ssh_config() {
     # In case of error, de-register the last key we tried
     if [[ -n "${actual_key}" ]]; then
       if ! ssh-add -d "${actual_key}"; then
-        logWarn "An error occured while trying to remove a useless key from the ssh agent"
+        logWarn "An error occurred while trying to remove a useless key from the ssh agent"
       fi
     fi
   else

@@ -61,7 +61,7 @@ ad_sssd_restart() {
       logError "Failed to restart SSSD"
       return 1
     else
-      SSD_RESTART=0
+      SSSD_RESTART=0
       logInfo "Successfully restarted SSSD"
     fi
   else
@@ -72,14 +72,16 @@ ad_sssd_restart() {
 ad_fix_sudoers() {
   local sudoers_file="/etc/sudoers.d/ad-sudoers"
 
-  local file_content=$(cat <<EOF
+  local file_content
+  file_content=$(
+    cat <<EOF
 # Allow members of the "Domain Admins" group to have sudo access
 "%domain admins" ALL=(ALL:ALL) ALL
 
 # Allow members of the "admins" group to have sudo access
 "%admins" ALL=(ALL:ALL) ALL
 EOF
-)
+  )
 
   # Write the file
   if ! echo "${file_content}" | sudo tee "${sudoers_file}" >/dev/null; then
@@ -179,6 +181,7 @@ ad_fix_sssd() {
   fi
 
   # Find the setting in the config, knowing it could be prefixed with anything.
+  # shellcheck disable=SC2312
   if ! sudo grep -E "^.*${setting}\s*=" "${sssd_conf}" >/dev/null; then
     logError "SSSD setting not found in config file: ${setting}"
     # Append the config at the end of the file
@@ -314,6 +317,7 @@ ad_netbios_name() {
 
   local output
   # Retrieve the NetBIOS name using testparm, suppressing errors and taking the last line
+  # shellcheck disable=SC2312
   if ! output=$(testparm -s --parameter-name="netbios name" 2>/dev/null | tail -n 1 | tr -d '[:space:]'); then
     logError "Failed to retrieve NetBIOS name using testparm"
     return 1
@@ -337,6 +341,7 @@ ad_domain_fqdn() {
 
   local output
   # Retrieve the domain FQDN using testparm, suppressing errors and taking the last line
+  # shellcheck disable=SC2312
   if ! output=$(realm list | awk '/domain-name/ {print $2}'); then
     logError "Failed to retrieve AD domain FQDN using testparm"
     return 1
@@ -353,8 +358,9 @@ ad_domain_fqdn() {
 }
 
 ad_install_sysvol() {
-  local refresh_src="${AD_ROOT}/data/sysvol_refresh.sh"
-  local refresh_dst="/usr/local/bin/$(basename "${refresh_src}")"
+  local refresh_src="${AD_ROOT}/data/sysvol_refresh"
+  local refresh_dst
+  refresh_dst="/usr/local/bin/$(basename "${refresh_src}").sh"
   local sysvol_cache="/var/cache/sysvol"
   local service_unit="/etc/systemd/user/${LOGON_SRV_NAME}.service"
   local path_unit="/etc/systemd/user/${LOGON_SRV_NAME}.path"
@@ -366,7 +372,7 @@ ad_install_sysvol() {
   local _domain
 
   # Check we have the dependencies we need
-  if [ ! -f "${refresh_src}" ]; then
+  if [[ ! -f "${refresh_src}" ]]; then
     logError "SYSVOL refresh script not found at ${refresh_src}"
     return 1
   elif ! ad_domain_fqdn _domain; then
@@ -410,7 +416,9 @@ ad_install_sysvol() {
   fi
 
   # Create the hook script to be run by user services at login
-  local user_content=$(cat <<EOF
+  local user_content
+  user_content=$(
+    cat <<EOF
 #!/bin/env sh
 # SPDX-License-Identifier: MIT
 #
@@ -471,7 +479,7 @@ else
 fi
 
 EOF
-)
+  )
   if ! echo "${user_content}" | sudo tee "${user_wrapper}" >/dev/null; then
     logError "Failed to create AD logon hook script at ${user_wrapper}"
     return 1
@@ -486,7 +494,9 @@ EOF
   fi
 
   # Install user service to be run at login
-  local service_content=$(cat <<EOF
+  local service_content
+  service_content=$(
+    cat <<EOF
 [Unit]
 Description=AD Logon Hook
 After=default.target
@@ -499,7 +509,7 @@ ExecStart=${user_wrapper}
 [Install]
 WantedBy=default.target
 EOF
-)
+  )
 
   if ! echo "${service_content}" | sudo tee "${service_unit}" >/dev/null; then
     logError "Failed to create systemd service for AD logon hook at ${service_unit}"
@@ -514,8 +524,10 @@ EOF
     logInfo "Successfully created user service for future users"
   fi
 
-# Install the path unit to trigger the user service on ready file creation in home directories
-local path_content=$(cat <<EOF
+  # Install the path unit to trigger the user service on ready file creation in home directories
+  local path_content
+  path_content=$(
+    cat <<EOF
 [Unit]
 Description=Path unit to trigger AD logon hook on home directory ready file creation
 After=default.target
@@ -526,7 +538,7 @@ PathExists=%h/${ready_file_rel}
 [Install]
 WantedBy=default.target
 EOF
-)
+  )
 
   if ! echo "${path_content}" | sudo tee "${path_unit}" >/dev/null; then
     logError "Failed to create systemd path unit for AD logon hook at ${path_unit}"
@@ -542,7 +554,9 @@ EOF
   fi
 
   # Install PAM hook script
-  local pam_content=$(cat <<EOF
+  local pam_content
+  pam_content=$(
+    cat <<EOF
 #!/bin/env sh
 # SPDX-License-Identifier: MIT
 #
@@ -629,9 +643,9 @@ flock -n 9 || {
 # Execute the rest as backgdound to avoid blocking the login
 {
   # Refresh SYSVOL
-  logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename ${refresh_dst}) for user \${PAM_USER}"
+  logger -t "\${LOGGER_NAME}" "Executing PAM hook $(basename "${refresh_dst}") for user \${PAM_USER}"
   if [ \$(id -u) -eq 0 ]; then
-    $(command -v runuser) -u "\${ME_USER}" -- \
+    $(command -v runuser || true) -u "\${ME_USER}" -- \
       env KRB5CCNAME="KCM:\${cur_id}" "${refresh_dst}"
     ecode="\${?}"
   elif [ \$(id -u) -eq "\${cur_id}" ]; then
@@ -648,7 +662,7 @@ flock -n 9 || {
     rm -f "\${home_dir}/${ready_file_rel}"
   fi
   if [ \$(id -u) -eq 0 ]; then
-    $(command -v runuser) -u "\${ME_USER}" -- \
+    $(command -v runuser || true) -u "\${ME_USER}" -- \
       echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
   elif [ \$(id -u) -eq "\${cur_id}" ]; then
     echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
@@ -663,7 +677,7 @@ flock -n 9 || {
 } &
 
 EOF
-)
+  )
   if ! echo "${pam_content}" | sudo tee "${pam_wrapper}" >/dev/null; then
     logError "Failed to create PAM hook script at ${pam_wrapper}"
     return 1

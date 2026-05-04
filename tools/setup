@@ -3,7 +3,7 @@
 #
 # This script is used to configure the dev environment
 #
-# Currently desgined and tested using Unbutun Cinnamon 25.10
+# Currently designed and tested using Unbutun Cinnamon 25.10
 
 setup_main() {
   # Load dependencies
@@ -47,7 +47,6 @@ remove_internal_dependencies() {
 
   return 0
 }
-
 
 setup_install() {
   logInfo "Setting up development environment..."
@@ -171,6 +170,7 @@ external_dependencies() {
   fi
 
   # Install BPKG
+  # shellcheck disable=SC2312
   if ! command -v bpkg >/dev/null 2>&1; then
     echo "WARN: bpkg is not installed. Please install it first."
     if ! command -v wget >/dev/null 2>&1; then
@@ -181,7 +181,7 @@ external_dependencies() {
       return 1
     else
       # Refresh PATH to include bpkg
-      # shellcheck disable=SC1090
+      # shellcheck disable=SC1091
       if ! source "${HOME}/.profile"; then
         echo "ERROR: Failed to source after installing bpkg"
         return 1
@@ -201,7 +201,7 @@ external_dependencies() {
   fi
 
   # Load the libraries
-  # shellcheck disable=SC1090
+  # shellcheck disable=SC1091
   if ! source "${PREFIX}/lib/slf4.sh"; then
     echo "Failed to import slf4.sh"
     exit 1

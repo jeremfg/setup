@@ -6,10 +6,10 @@
 sysvol_refresh() {
   __refresh_res=1
 
-  if ! command -v klist > /dev/null 2>&1; then
+  if ! command -v klist >/dev/null 2>&1; then
     logError "klist command not found, please install krb5-user package"
     return 1
-  elif ! command -v ipcalc > /dev/null 2>&1; then
+  elif ! command -v ipcalc >/dev/null 2>&1; then
     logError "ipcalc command not found, please install ipcalc package"
     return 1
   fi
@@ -48,7 +48,7 @@ sysvol_refresh() {
     logInfo "Successfully unmounted SYSVOL, cache refresh complete"
   fi
 
-  return ${__refresh_res}
+  return "${__refresh_res}"
 }
 
 # Wait for credential cache to appear, and obtain them
@@ -81,7 +81,7 @@ wait_for_creds() {
   __klist_res=1
   for i in $(seq 1 "${timeout}"); do
     # Focus on klist at first
-    if [ ${__klist_res} -ne 0 ]; then
+    if [ "${__klist_res}" -ne 0 ]; then
       if klist -s; then
         logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
         __klist_res=0
@@ -99,7 +99,7 @@ wait_for_creds() {
     # Locate the most recently modified one that still holds a valid TGT.
     _ccache_spec=""
     _ccache_mtime=0
-    for _ccfile in /tmp/krb5cc_${user_id} /tmp/krb5cc_${user_id}_*; do
+    for _ccfile in /tmp/krb5cc_${user_id} "/tmp/krb5cc_${user_id}_"*; do
       [ -f "${_ccfile}" ] || continue
       _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
       if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
@@ -116,7 +116,7 @@ wait_for_creds() {
     sleep 1
   done
 
-  if [ -z "${_ccache_spec}" ] || [ ${__klist_res} -ne 0 ]; then
+  if [ -z "${_ccache_spec}" ] || [ "${__klist_res}" -ne 0 ]; then
     return 1
   else
     eval "${__res_ccache}='${_ccache_spec}'"
@@ -126,11 +126,11 @@ wait_for_creds() {
 
 # Refresh the local cache with the contents of the mounted SYSVOL
 # Parameters:
-#   $1[in]: The domain name (e.g. ad.jeremfg.com
+#   $1[in]: The domain name (e.g. ad.jeremfg.com)
 sysvol_update_cache() {
   domain="${1}"
 
-  # Syncrhonize the cache
+  # Synchronize the cache
   if ! mkdir -p "${SYSVOL_CACHE_DIR}/${domain}"; then
     logError "Failed to create SYSVOL cache directory ${SYSVOL_CACHE_DIR}/${domain}"
     return 1
@@ -157,6 +157,7 @@ sysvol_mount() {
   ccache_spec="${2}"
 
   # Locate the nearest reachable domain controller
+  my_dc=""
   if ! sysvol_find_dc my_dc "${domain}"; then
     logError "Failed to find domain controller for SYSVOL mount"
     return 1
@@ -172,7 +173,7 @@ sysvol_mount() {
   elif ! mkdir -p "${SYSVOL_MOUNT_POINT}"; then
     logError "Failed to create SYSVOL mount point ${SYSVOL_MOUNT_POINT}"
     return 1
-  elif ! cd "${SYSVOL_MOUNT_POINT}" > /dev/null; then
+  elif ! cd "${SYSVOL_MOUNT_POINT}" >/dev/null; then
     logError "Failed to change directory to ${SYSVOL_MOUNT_POINT}"
     return 1
   elif ! KRB5CCNAME="${ccache_spec}" smbclient "//${my_dc}/SYSVOL" \
@@ -185,13 +186,13 @@ sysvol_mount() {
     __res=0
   fi
 
-  if ! cd - > /dev/null; then
+  if ! cd - >/dev/null; then
     logError "Failed to change directory back from ${SYSVOL_MOUNT_POINT}"
     __res=1
   fi
 
   logInfo "Successfully mounted SYSVOL at ${SYSVOL_MOUNT_POINT}"
-  return ${__res}
+  return "${__res}"
 }
 
 sysvol_unmount() {
@@ -223,11 +224,10 @@ sysvol_find_dc() {
 
   candidate_dc=""
   # Retrieve all DCs for the domain
-  # host -t SRV _ldap._tcp.ad.jeremfg.com | awk '{print $8}' | sed 's/\.$//'
-  for dc in $(host -t SRV _ldap._tcp.${domain} | awk '{print $8}' | sed 's/\.$//'); do
+  for dc in $(host -t SRV "_ldap._tcp.${domain}" | awk '{print $8}' | sed 's/\.$//'); do
     logDebug "Assessing DC: ${dc}"
     # Filter-out a non-reachable server
-    if ! ping -c 1 -W 1 "${dc}" > /dev/null 2>&1; then
+    if ! ping -c 1 -W 1 "${dc}" >/dev/null 2>&1; then
       logWarn "DC ${dc} is not reachable, skipping"
       continue
     # Prefer a DC on the same subnet
@@ -240,7 +240,7 @@ sysvol_find_dc() {
       candidate_dc="${dc}"
       continue
     else
-      logInfo "Ignoring ${dc}, prefering ${candidate_dc}"
+      logInfo "Ignoring ${dc}, preferring ${candidate_dc}"
       continue
     fi
   done
@@ -335,4 +335,4 @@ logger -t "${LOGGER_NAME}" "Starting SYSVOL refresh for: ${USER}"
 sysvol_refresh "${@}"
 res="${?}"
 logger -t "${LOGGER_NAME}" "Finished SYSVOL refresh with status: ${res}"
-exit ${res}
+exit "${res}"

@@ -51,7 +51,7 @@ pass_setup_gpg() {
     logInfo "No ${gpg_key_name} configured, checking for existing GPG keys..."
 
     local gpg_ids
-    mapfile -t gpg_ids < <(gpg --list-keys --with-colons 2>/dev/null | awk -F: '/^pub:/ {print $5}')
+    mapfile -t gpg_ids < <(gpg --list-keys --with-colons 2>/dev/null | awk -F: '/^pub:/ {print $5}') || true
 
     if [[ ${#gpg_ids[@]} -gt 1 ]]; then
       logError "Multiple GPG keys found. Set ${gpg_key_name} in ${config_file} to choose one."
@@ -61,24 +61,24 @@ pass_setup_gpg() {
     else
       logInfo "No GPG keys found, generating a new one..."
 
-        # Fetch user info from git config (required)
-        local git_user_name git_user_email
-        git_user_name=$(git config user.name 2>/dev/null || true)
-        git_user_email=$(git config user.email 2>/dev/null || true)
+      # Fetch user info from git config (required)
+      local git_user_name git_user_email
+      git_user_name=$(git config user.name 2>/dev/null || true)
+      git_user_email=$(git config user.email 2>/dev/null || true)
 
-        if [[ -z "${git_user_name}" || -z "${git_user_email}" ]]; then
-          logError "Git user.name and user.email must be set to generate a GPG key"
-          logError "Run: git config user.name \"Your Name\""
-          logError "Run: git config user.email \"you@example.com\""
-          return 1
-        fi
+      if [[ -z "${git_user_name}" || -z "${git_user_email}" ]]; then
+        logError "Git user.name and user.email must be set to generate a GPG key"
+        logError "Run: git config user.name \"Your Name\""
+        logError "Run: git config user.email \"you@example.com\""
+        return 1
+      fi
 
-        logInfo "Using git identity: ${git_user_name} <${git_user_email}>"
+      logInfo "Using git identity: ${git_user_name} <${git_user_email}>"
 
-        # Generate GPG key non-interactively using EDDSA (elliptic curve)
-        local gpg_batch_file
-        gpg_batch_file=$(mktemp)
-        cat > "${gpg_batch_file}" << EOF
+      # Generate GPG key non-interactively using EDDSA (elliptic curve)
+      local gpg_batch_file
+      gpg_batch_file=$(mktemp)
+      cat >"${gpg_batch_file}" <<EOF
 %echo Generating OpenPGP key
 Key-Type: ECDSA
 Key-Curve: nistp384
@@ -93,20 +93,23 @@ Preferences: AES256 SHA384 SHA512
 %echo Key generation complete
 EOF
 
-        if ! gpg --batch --generate-key "${gpg_batch_file}" 2>&1 | while IFS= read -r line; do logInfo "$line"; done; then
-          logError "Failed to generate GPG key"
-          rm -f "${gpg_batch_file}"
-          return 1
-        fi
+      local output
+      if ! output=$(gpg --batch --generate-key "${gpg_batch_file}" 2>&1); then
+        logError "Failed to generate GPG key"
         rm -f "${gpg_batch_file}"
+        return 1
+      else
+        while IFS= read -r line; do logInfo "${line}"; done <<<"${output}"
+      fi
+      rm -f "${gpg_batch_file}"
 
-        # Extract the newly generated key ID
-        gpg_id=$(gpg --list-keys --with-colons 2>/dev/null | grep '^pub:' | cut -d: -f5 | head -n 1)
+      # Extract the newly generated key ID
+      gpg_id=$(gpg --list-keys --with-colons 2>/dev/null | grep '^pub:' | cut -d: -f5 | head -n 1 || true)
 
-        if [[ -z "${gpg_id}" ]]; then
-          logError "Failed to retrieve generated GPG key ID"
-          return 1
-        fi
+      if [[ -z "${gpg_id}" ]]; then
+        logError "Failed to retrieve generated GPG key ID"
+        return 1
+      fi
 
       logInfo "Generated GPG key ID: ${gpg_id}"
     fi

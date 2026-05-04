@@ -48,7 +48,7 @@ xdg_register_mime() {
     logError "Failed to register MIME type for audio CDs"
     return 1
   else
-     logInfo "Successfully registered MIME types for optical media"
+    logInfo "Successfully registered MIME types for optical media"
   fi
 
   return 0
@@ -81,7 +81,9 @@ xdg_register_mime2() {
 }
 
 xdg_install_apps() {
-  local bd_hdl=$(cat <<EOF
+  local bd_hdl
+  bd_hdl=$(
+    cat <<EOF
 [Desktop Entry]
 Name=Play Blu-ray (VLC)
 Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
@@ -89,8 +91,10 @@ Type=Application
 MimeType=x-content/video-bluray;
 NoDisplay=true
 EOF
-)
-  local dvd_hdl=$(cat <<EOF
+  )
+  local dvd_hdl
+  dvd_hdl=$(
+    cat <<EOF
 [Desktop Entry]
 Name=Play DVD (VLC)
 Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
@@ -98,8 +102,10 @@ Type=Application
 MimeType=x-content/video-dvd;
 NoDisplay=true
 EOF
-)
-  local cd_hdl=$(cat <<EOF
+  )
+  local cd_hdl
+  cd_hdl=$(
+    cat <<EOF
 [Desktop Entry]
 Name=Play Audio CD (VLC)
 Exec=${XDG_OPTICAL_AUTORUN_DEST} %f
@@ -107,7 +113,7 @@ Type=Application
 MimeType=x-content/audio-cdda;
 NoDisplay=true
 EOF
-)
+  )
   if ! echo "${bd_hdl}" | sudo tee "${XDG_BD_APP}" >/dev/null; then
     logError "Failed to install XDG desktop entry for Blu-ray handler"
     return 1
@@ -137,7 +143,7 @@ EOF
 }
 
 # Source script
-XDG_OPTICAL_AUTORUN_SRC="data/play_optical_media.sh"
+XDG_OPTICAL_AUTORUN_SRC="data/play_optical_media"
 XDG_OPTICAL_AUTORUN_DEST="/usr/local/bin/play_optical_media.sh"
 
 # Application files

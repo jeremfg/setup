@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # SPDX-License-Identifier: MIT
 #
-# SSH confiuration utilities
+# SSH configuration utilities
 
 if [[ -z ${GUARD_SSH_SH+x} ]]; then
   GUARD_SSH_SH=1
@@ -20,7 +20,7 @@ ssh_server_install() {
   res=$(sudo systemctl status ssh 2>&1)
 
   # Enable the service if it's not active
-  if [[ "${res}" =~ *"inactive"* ]]; then
+  if [[ "${res}" = *"inactive"* ]]; then
     logInfo "Enabling ssh service"
     if ! sudo systemctl enable --now ssh; then
       logError "Failed to enable ssh service"
@@ -116,7 +116,7 @@ ssh_agent_install() {
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 #
-# SSH confiuration to be invoked at startup
+# SSH configuration to be invoked at startup
 # (This file was automatically generated)
 
 # Make sure the ssh-agent is running
@@ -229,7 +229,7 @@ ssh_next_key_name() {
 #   $2[in]:  Absolute path to the key, if one needs to be generated
 # Returns:
 #   0: If a key was selected (See $1)
-#   1: If an error occured, and we must proceed without a key
+#   1: If an error occurred, and we must proceed without a key
 ssh_ask() {
   local private_key="$1"
   local suggested_key="$2"
@@ -344,7 +344,7 @@ EOF
 #   $1[in]: Absolute path where the key will be stored
 # Returns:
 #   0: If a key was generated
-#   1: If an error occured, and we must proceed without a key
+#   1: If an error occurred, and we must proceed without a key
 ssh_generate_keypair() {
   local _prv_key="$1"
   local file
@@ -396,13 +396,13 @@ EOF
 #   $1[in]: Absolute path where the key will be stored
 # Returns:
 #   0: If a key was generated
-#   1: If an error occured, and we must proceed without a key
+#   1: If an error occurred, and we must proceed without a key
 ssh_paste_key() {
   sg_ssh_paste_key "${1}"
   return $?
 }
 
-# Create an identity remotely or localy
+# Create an identity remotely or locally
 #
 # Parameters:
 #   $1[out]: The public key created
@@ -412,7 +412,7 @@ ssh_paste_key() {
 #   $5[in]:  The port (Omit if creating locally)
 # Returns:
 #   0: If the identity was created
-#   1: If an error occured
+#   1: If an error occurred
 ssh_identity_create() {
   local __ssh_pub_key="${1}"
   local __ssh_user="${2}"
@@ -438,7 +438,7 @@ ssh_identity_create() {
     fi
   fi
   if [[ ${_id_code} -eq 0 ]]; then
-    logInfo "Indentity already exists"
+    logInfo "Identity already exists"
     # shellcheck disable=SC2088
     _id_cmd=(cat "${SSH_IDENTITY_PUB_KEY}")
     if [[ -z ${__ssh_host} ]]; then
@@ -502,7 +502,7 @@ ssh_identity_create() {
 #   $5[in]: The port
 # Returns:
 #   0: If the identity was authorized
-#   1: If an error occured
+#   1: If an error occurred
 ssh_identity_authorize() {
   local __ssh_pub_key="${1}"
   local __ssh_user="${2}"
@@ -547,7 +547,7 @@ ssh_identity_authorize() {
 #   $5[in]:  The port
 #   $@[in]:  The command to execute
 # Returns:
-#   1: If an error occured
+#   1: If an error occurred
 #   $?: The return code of the command
 ssh_exec() {
   local __ssh_output="${1}"
@@ -626,7 +626,7 @@ EOF
 #   $2[in]:  The password to use
 #   $@[in]:  The command to execute
 # Returns:
-#   1: If an error occured
+#   1: If an error occurred
 #   $?: The return code of the command
 sshpass_exec() {
   local __sshpass_output="${1}"

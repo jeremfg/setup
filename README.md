@@ -34,9 +34,9 @@ From Windows 10 and Later, this will perform the following:
 
 1. Install WSL2
 1. Install the latest Ubuntu LTS release
-1. Installl docker
+1. Install docker
 1. Clone specified git repository inside WSL
-1. Invoke an entry point for further exection
+1. Invoke an entry point for further execution
 
 Here is an example how this one-liner feature can be used:
 

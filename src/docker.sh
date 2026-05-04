@@ -76,8 +76,8 @@ docker_install() {
   fi
 
   echo "deb [arch=${arch} signed-by=${SETUP_APT_KEYRING_DIR}/docker.asc] https://download.docker.com/linux/${detected_os} \
-  ${codename} stable" | \
-  sudo tee "${SETUP_APT_SOURCES_DIR}/docker.list" > /dev/null
+  ${codename} stable" |
+    sudo tee "${SETUP_APT_SOURCES_DIR}/docker.list" >/dev/null
 
   # Update apt cache
   if ! sudo apt-get update; then

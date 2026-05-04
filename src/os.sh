@@ -35,12 +35,12 @@ os_identify() {
 # Ask user for input
 #
 # Parameters:
-#   $1[out]: Answer
+#   $1[out]: Result variable
 #   $2[in]: Question to ask
 #   $3[in]: Default value (Optional)
-#   $4[in]: Timout (s) [Default: 10 seconds]
+#   $4[in]: Timeout (s) [Default: 10 seconds]
 os_ask_user() {
-  local ans="$1"
+  local __res="$1"
   local question="$2"
   local default="$3"
   local -i timeout=${4:-10}
@@ -60,13 +60,13 @@ os_ask_user() {
   fi
   if [[ ${res} -eq 0 ]]; then
     if [[ -z "${myvar}" ]]; then
-      eval "${ans}='${default}'"
+      eval "${__res}='${default}'"
     else
-      eval "${ans}='${myvar}'"
+      eval "${__res}='${myvar}'"
     fi
   else
     echo ""
-    eval "${ans}='${default}'"
+    eval "${__res}='${default}'"
   fi
   return 0
 }

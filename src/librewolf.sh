@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # SPDX-License-Identifier: MIT
 
 # Guard to prevent multiple sourcing
@@ -35,7 +35,7 @@ _librewolf_configure_profiles_enabled() {
       return 1
     fi
 
-    cat > "${LIBREWOLF_PROFILES_INI}" << 'EOF'
+    cat >"${LIBREWOLF_PROFILES_INI}" <<'EOF'
 [Profile0]
 Name=default
 IsRelative=1

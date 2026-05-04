@@ -9,7 +9,6 @@ else
   return 0
 fi
 
-
 # Install a PPA repository
 # Parameters:
 #   $1: Repository name (e.g. "ppa:mozillateam/ppa")

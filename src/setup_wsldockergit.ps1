@@ -73,7 +73,7 @@ function main {
   # Checkout repo
   Get-Repo
 
-  # Cleanup tasks (If we reach here, we have done everything we wanted succesfully)
+  # Cleanup tasks (If we reach here, we have done everything we wanted successfully)
   Reset-AutoExec
 }
 
@@ -272,7 +272,7 @@ function Install-WSLDistro {
       # There could be a restart during Ubuntu installation. Make sure we will resume if it happens
       Set-AutoExec
 
-      Write-Log -Level 'INFO' -Message "Installing {0}... You will need to call 'exit' after your user is crated." `
+      Write-Log -Level 'INFO' -Message "Installing {0}... You will need to call 'exit' after your user is created." `
         -Arguments "$(Get-LatestUbuntuDistro)"
       wsl --install -d "$(Get-LatestUbuntuDistro)"
 
@@ -286,7 +286,7 @@ function Install-WSLDistro {
       $currentRetry = 0
 
       while ($currentRetry -lt $maxRetries) {
-        # Get attirbutes of Distro
+        # Get attributes of Distro
         $WslDistribution = Get-WslDistribution "$(Get-LatestUbuntuDistro)"
         if ($null -ne $WslDistribution) {
           $state = $WslDistribution.State
@@ -315,7 +315,7 @@ function Install-WSLDistro {
     Write-Log -Level 'DEBUG' -Message "{0} is installed" -Arguments "$(Get-LatestUbuntuDistro)"
   }
 
-  # Check if it's runnnig WSL 2
+  # Check if it's running WSL 2
   if ($WslDistribution.Version -ne 2) {
     Write-Log -Level 'WARNING' -Message "{0} is running WSL version {1}. Attempting an upgrade..." `
     -Arguments "$(Get-LatestUbuntuDistro)", $WslDistribution.Version
@@ -369,7 +369,7 @@ function Install-WSL2 {
       # Error: 0x800701bc WSL 2 requires an update to its kernel component. For information please visit https://aka.ms/wsl2kernel
       wsl --update
 
-      Write-Log -Level 'DEBUG' -Message "return from succesfully installing WSL2"
+      Write-Log -Level 'DEBUG' -Message "return from successfully installing WSL2"
 
       return
     }
@@ -384,7 +384,7 @@ function Install-WSL2 {
 
   $doINeedToRestart = $false
 
-  # Check for depedency VirtualMachinePlatform
+  # Check for dependency VirtualMachinePlatform
   $status = Get-WindowsOptionalFeature -Online | Where-Object FeatureName -eq "VirtualMachinePlatform"
   if ($status.State -eq "Enabled") {
     Write-Log -Level 'INFO' -Message "VirtualMachinePlatform is installed."
@@ -704,10 +704,10 @@ function Start-Logging {
 # Dynamic Constants #
 #####################
 # Returns the most recent version of the available Ubuntu distributions
-$distroName = $null
+$distro_name = $null
 function Get-LatestUbuntuDistro {
-  #Lazy-init $distroName
-  if ($null -eq $global:distroName) {
+  #Lazy-init $distro_name
+  if ($null -eq $global:distro_name) {
     # WSL outputs in UTF-16 LE
     $oldEncoding = [Console]::OutputEncoding
     [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
@@ -726,12 +726,12 @@ function Get-LatestUbuntuDistro {
     }
 
     # Select the first by descending order
-    $global:distroName = $versionMap.GetEnumerator() | Sort-Object Key -Descending |
+    $global:distro_name = $versionMap.GetEnumerator() | Sort-Object Key -Descending |
       Select-Object -First 1 -ExpandProperty Value
 
-    Write-Log -Level 'INFO' -Message "Latest Ubuntu distro: `"$global:distroName`""
+    Write-Log -Level 'INFO' -Message "Latest Ubuntu distro: `"$global:distro_name`""
   }
-  return $global:distroName
+  return $global:distro_name
 }
 
 # Find a root for this project
@@ -778,7 +778,7 @@ try {
   main
 
   # Ending log, and make sure everything is flushed before exiting
-  Write-Log -Level 'INFO' -Message "Script execution has completed succesfully"
+  Write-Log -Level 'INFO' -Message "Script execution has completed successfully"
   Wait-Logging
 
   Stop-Transcript

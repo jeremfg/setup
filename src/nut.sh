@@ -112,9 +112,9 @@ nut_setup() {
     return 1
   fi
 
-  # Make sure NUT is enabled at bootup
+  # Make sure NUT is enabled at boot-up
   if ! systemctl enable nut.target nut-driver.target; then
-    logError "Failed to enable NUT at bootup"
+    logError "Failed to enable NUT at boot-up"
     return 1
   fi
 
@@ -255,7 +255,7 @@ nut_configure_file() {
       fi
 
       NUT_RESTART_REQUIRED=1
-      logInfo "Updated ${file} succesfully"
+      logInfo "Updated ${file} successfully"
     else
       logInfo "File ${file} is up-to-date"
     fi
@@ -268,7 +268,7 @@ nut_configure_file() {
     fi
 
     NUT_RESTART_REQUIRED=1
-    logInfo "Created ${file} succesfully"
+    logInfo "Created ${file} successfully"
   fi
 
   # shellcheck disable=SC2312
@@ -356,5 +356,5 @@ elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
   :
 else
   # This script was executed
-  logFatal "This script cannot be exceuted"
+  logFatal "This script cannot be executed"
 fi

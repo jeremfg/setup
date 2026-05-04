@@ -18,7 +18,7 @@ fi
 #   1: Failure
 id_identify() {
   # NOTE: To help future devs who don't have access to your hardware,
-  # please provide the output of the following commnands in comments:
+  # please provide the output of the following commands in comments:
   #
   # dmidecode -t 0,1,2,3,4
   local _name="$1"
@@ -192,7 +192,7 @@ id_identify() {
       #                 Targeted content distribution is supported
       #                 UEFI is supported
       #         BIOS Revision: 3.2
-#
+      #
       # Handle 0x0001, DMI type 1, 27 bytes
       # System Information
       #         Manufacturer: Framework
@@ -203,7 +203,7 @@ id_identify() {
       #         Wake-up Type: Power Switch
       #         SKU Number: FRAGACCP0J
       #         Family: 16in Laptop
-#
+      #
       # Handle 0x0002, DMI type 2, 15 bytes
       # Base Board Information
       #         Manufacturer: Framework
@@ -218,7 +218,7 @@ id_identify() {
       #         Chassis Handle: 0x0003
       #         Type: Motherboard
       #         Contained Object Handles: 0
-#
+      #
       # Handle 0x0003, DMI type 3, 22 bytes
       # Chassis Information
       #         Manufacturer: Framework
@@ -236,7 +236,7 @@ id_identify() {
       #         Number Of Power Cords: 1
       #         Contained Elements: 0
       #         SKU Number: FRAGACCP0J
-#
+      #
       # Handle 0x0004, DMI type 4, 48 bytes
       # Processor Information
       #         Socket Designation: FP8

@@ -2,7 +2,7 @@
 :: SPDX-License-Identifier: MIT
 ::
 :: Entry point for setup_wsldockergit.ps1
-:: This is a helper to make sure the scripts can be launched successfully on a fresh Winodws install
+:: This is a helper to make sure the scripts can be launched successfully on a fresh Windows install
 :: when the execution policy is restricted
 
 @echo off
@@ -23,7 +23,7 @@ set pwd=%~dp0
 
 :: If we don't have the file, download it!
 if not exist "%pwd%%scriptName%" (
-  :: Use powershel for the download
+  :: Use powershell for the download
   powershell.exe -ExecutionPolicy Bypass -command "(New-Object System.Net.WebClient).DownloadFile('%scriptURL%', '%pwd%%scriptName%')"
 
   :: Check the download result

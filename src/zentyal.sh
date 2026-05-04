@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # SPDX-License-Identifier: MIT
 #
-# Utilities to confgure a Zentyal server
+# Utilities to configure a Zentyal server
 
 if [[ -z ${GUARD_ZL_SH+x} ]]; then
   GUARD_ZL_SH=1
@@ -66,10 +66,12 @@ zl_configure_replication() {
 }
 
 _sysvol_cron() {
-  local job=$(cat <<EOF
+  local job
+  job=$(
+    cat <<EOF
 0 * * * * root ${ZL_REPL_SCRIPT} >> ${ZL_REPL_LOG} 2>&1
 EOF
-)
+  )
   if ! echo "${job}" | sudo tee "${ZL_CRON_DEF}" >/dev/null; then
     logError "Failed to write cron definition"
     return 1
@@ -102,6 +104,7 @@ _sysvol_setup() {
 
   # Retrieve the list of objects to sync
   local dc_objects
+  # shellcheck disable=SC2312
   if ! readarray -t dc_objects < <(sudo samba-tool drs showrepl 2>/dev/null | grep -E '^CN=|^DC=' | sort -u); then
     logError "Failed to retrieve domain objects for replication"
     return 1
@@ -136,13 +139,17 @@ _sysvol_setup() {
   local cur_obj repl_code cur_step
   local replication_steps=""
   for cur_obj in "${dc_objects[@]}"; do
+    # shellcheck disable=SC2016
     cur_step="${ZL_REPLICATION_STEP//@SRC_DC@/'${PDC_NAME}'}"
+    # shellcheck disable=SC2016
     cur_step="${cur_step//@DST_DC@/'${BDC_NAME}'}"
     cur_step="${cur_step//@OBJECT@/${cur_obj}}"
     replication_steps+="${cur_step}"
   done
   for cur_obj in "${dc_objects[@]}"; do
+    # shellcheck disable=SC2016
     cur_step="${ZL_REPLICATION_STEP//@SRC_DC@/'${BDC_NAME}'}"
+    # shellcheck disable=SC2016
     cur_step="${cur_step//@DST_DC@/'${PDC_NAME}'}"
     cur_step="${cur_step//@OBJECT@/${cur_obj}}"
     replication_steps+="${cur_step}"
@@ -171,7 +178,8 @@ _sysvol_setup() {
   logInfo "SYSVOL replication configured successfully"
 }
 
-ZL_REPLICATION_SCRIPT=$(cat <<'EOF'
+ZL_REPLICATION_SCRIPT=$(
+  cat <<'EOF'
 # !/bin/env sh
 # SPDX-License-Identifier: MIT
 #
@@ -342,7 +350,8 @@ exit 0
 EOF
 )
 
-ZL_REPLICATION_STEP=$(cat <<'EOF'
+ZL_REPLICATION_STEP=$(
+  cat <<'EOF'
 
   elif ! replicate_object @SRC_DC@ @DST_DC@ @OBJECT@; then
     logger -t "${LOGGER_NAME}" "Failed to replicate @OBJECT@ from @SRC_DC@ to @DST_DC@"
@@ -360,9 +369,11 @@ zl_netbios_pdc() {
   # Fetch FSMO role data
   # Extract the line with the PDC Emulator
   # Extract the CN value (NetBIOS name)
-  if ! output=$(sudo samba-tool fsmo show \
-    | awk -F': ' '/PdcEmulationMasterRole owner/ {print $2}' \
-    | sed -n 's/.*CN=\([^,]*\),CN=Servers.*/\1/p' \
+  if ! output=$(
+    # shellcheck disable=SC2312
+    sudo samba-tool fsmo show |
+      awk -F': ' '/PdcEmulationMasterRole owner/ {print $2}' |
+      sed -n 's/.*CN=\([^,]*\),CN=Servers.*/\1/p'
   ); then
     logError "Failed to retrieve PDC NetBIOS name"
     return 1
@@ -387,10 +398,11 @@ zl_fqdn() {
   # Fetch Samba info for the given machine
   # Extract the DC name
   # Cleanup the value
-  if ! fqdn=$(sudo samba-tool domain info "${__netbios_name}" \
-    | awk -F': ' '/DC name/ {print $2}' \
-    | tail -n 1 | tr -d '[:space:]' \
-  2>/dev/null); then
+  # shellcheck disable=SC2312
+  if ! fqdn=$(sudo samba-tool domain info "${__netbios_name}" |
+    awk -F': ' '/DC name/ {print $2}' |
+    tail -n 1 | tr -d '[:space:]' \
+    2>/dev/null); then
     logError "Failed to retrieve FQDN for ${__netbios_name}"
     return 1
   elif [[ -z "${fqdn}" ]]; then

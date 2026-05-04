@@ -21,7 +21,7 @@ var_backup() {
 #   $1[in]: Name of the variable
 #   $2[value]: Value of the variable
 # Returns:
-#   0: If added succesfully
+#   0: If added successfully
 #   1: If no backup exists
 var_append() {
   local name="$1"
@@ -53,7 +53,7 @@ var_clear() {
 # Restore previously backed up environment variables
 #
 # Returns:
-#   0: If variables were restored succesfully
+#   0: If variables were restored successfully
 #   1: If backup was not found
 var_restore() {
   sg_var_restore
@@ -91,7 +91,7 @@ env_replace_in_place() {
     var_names+=("${var_name}")
   done <<<"${sed_output}"
 
-  # Remove blank entries by ommiting quotes
+  # Remove blank entries by omitting quotes
   # shellcheck disable=SC2206
   var_names=(${var_names[@]})
 
@@ -118,7 +118,6 @@ env_replace_in_place() {
 #   1: If the file was not found
 env_file() {
   local __return_env_file="${1}"
-
 
   local env_file
   if [[ -f "${HOME}/.bash_profile" ]]; then
