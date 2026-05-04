@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# This script is used to configure the dev environment
+#
+# Currently desgined and tested using Unbutun Cinnamon 25.10
+
+setup_main() {
+  # Load dependencies
+  if ! setup_internal_dependencies; then
+    echo "ERROR: Failed to setup internal dependencies"
+    return 1
+  fi
+
+  # Argument parsing
+  local ACTION="install"
+  if [[ $# -gt 0 ]]; then
+    case "$1" in
+    install)
+      ACTION="install"
+      ;;
+    remove | uninstall)
+      ACTION="remove"
+      ;;
+    *)
+      logError "Unrecognized action: $1"
+      return 1
+      ;;
+    esac
+  fi
+
+  if ! setup_"${ACTION}"; then
+    logError "Failed to ${ACTION} development environment"
+    return 1
+  fi
+
+  logInfo "Setup complete"
+
+  return 0
+}
+
+remove_internal_dependencies() {
+  logInfo "Removing internal dependencies..."
+
+  rm -rf "${CONFIG_DIR}"
+  rm -rf "${BIN_DIR}"
+
+  return 0
+}
+
+
+setup_install() {
+  logInfo "Setting up development environment..."
+
+  # Make sure git is installed and configured
+  if ! git_install; then
+    logInfo "Failed to install git"
+    return 1
+  elif ! git_configure "${ST_ROOT}"; then
+    logInfo "Failed to configure git"
+    return 1
+  fi
+
+  # Install python and pip
+  if ! python_install; then
+    logError "Failed to install python"
+    return 1
+  fi
+
+  # Install pre-commit
+  if ! pip_install pre-commit; then
+    logError "Failed to install pre-commit"
+    return 1
+  elif [[ ! -f "${ST_ROOT}/.git/hooks/pre-commit" ]]; then
+    logInfo "Configuring pre-commit..."
+    if ! pre-commit install; then
+      logError "Failed to configure pre-commit"
+      return 1
+    fi
+  fi
+
+  # Install shellcheck
+  if ! pkg_install shellcheck; then
+    logError "Failed to install shellcheck"
+    return 1
+  fi
+
+  # # Install dotenv-linter (pre-commit)
+  # if ! command -v dotenv-linter &>/dev/null; then
+  #   logInfo "Installing dotenv-linter..."
+  #   wget -qO /tmp/dotenv-linter-install.sh https://raw.githubusercontent.com/dotenv-linter/dotenv-linter/master/install.sh
+  #   if ! sh /tmp/dotenv-linter-install.sh --git "dotenv-linter/dotenv-linter" -b "${BIN_DIR}" "v3.2.0"; then
+  #     logError "Failed to install dotenv-linter"
+  #     rm -f /tmp/dotenv-linter-install.sh
+  #     return 1
+  #   fi
+  #   rm -f /tmp/dotenv-linter-install.sh
+  #   if ! file_symlink "${BIN_DIR}/dotenv-linter" "${SETUP_LOCAL_BIN}/dotenv-linter"; then
+  #     logError "Failed to symlink dotenv-linter to ${SETUP_LOCAL_BIN}"
+  #     return 1
+  #   fi
+  # fi
+
+  return 0
+}
+
+setup_remove() {
+  echo "Removing development environment..."
+
+  pre-commit uninstall
+  sudo apt remove -y shellcheck
+  pip3 uninstall -y pre-commit
+  # sudo apt remove -y "python3" "python3-pip"
+  remove_internal_dependencies
+
+  return 0
+}
+
+setup_internal_dependencies() {
+  CONFIG_DIR="${ST_ROOT}/.config"
+  BIN_DIR="${ST_ROOT}/bin"
+
+  # shellcheck disable=SC1090
+  if [[ -z "${CONFIG_DIR}" ]]; then
+    echo "CONFIG_DIR is not set"
+    return 1
+  elif [[ -z "${BIN_DIR}" ]]; then
+    echo "BIN_DIR is not set"
+    return 1
+  elif ! source "${ST_ROOT}/src/constants.sh"; then
+    echo "Failed to import constants.sh"
+    return 1
+  elif [[ -z "${SETUP_LOCAL_BIN}" ]]; then
+    echo "SETUP_LOCAL_BIN is not set in constants.sh"
+    return 1
+  elif ! source "${ST_ROOT}/src/git.sh"; then
+    echo "Failed to import git.sh"
+    return 1
+  elif ! source "${ST_ROOT}/src/python.sh"; then
+    echo "Failed to import python.sh"
+    return 1
+  elif ! source "${ST_ROOT}/src/file.sh"; then
+    echo "Failed to import file.sh"
+    return 1
+  elif ! file_ensure_dir "${CONFIG_DIR}"; then
+    echo "Failed to create config directory: ${CONFIG_DIR}"
+    return 1
+  elif ! file_ensure_dir "${BIN_DIR}"; then
+    echo "Failed to create bin directory: ${BIN_DIR}"
+    return 1
+  else
+    logInfo "Internal dependencies loaded successfully"
+  fi
+
+  return 0
+}
+
+external_dependencies() {
+  # Configure logger
+  export LOG_CONSOLE=1
+  export LOG_LEVEL=0
+
+  # Global Prefix
+  if [[ -z "${PREFIX}" ]]; then
+    if [[ $(id -u || true) -eq 0 ]]; then
+      PREFIX="/usr/local"
+    else
+      PREFIX="${HOME}/.local"
+    fi
+    export PREFIX
+  fi
+
+  # Install BPKG
+  if ! command -v bpkg >/dev/null 2>&1; then
+    echo "WARN: bpkg is not installed. Please install it first."
+    if ! command -v wget >/dev/null 2>&1; then
+      echo "ERROR: wget is not installed. Please install it first."
+      return 1
+    elif ! wget -qO- "${BPKG_DL_URL}" | bash; then
+      echo "ERROR: Failed to install bpkg"
+      return 1
+    else
+      # Refresh PATH to include bpkg
+      # shellcheck disable=SC1090
+      if ! source "${HOME}/.profile"; then
+        echo "ERROR: Failed to source after installing bpkg"
+        return 1
+      fi
+      echo "bpkg installed successfully"
+    fi
+  fi
+
+  # Install slf4.sh
+  if [[ ! -f "${PREFIX}/lib/slf4.sh" ]]; then
+    if ! bpkg install -g jeremfg/slf4.sh; then
+      echo "Failed to install slf4.sh"
+      return 1
+    else
+      echo "slf4.sh installed successfully"
+    fi
+  fi
+
+  # Load the libraries
+  # shellcheck disable=SC1090
+  if ! source "${PREFIX}/lib/slf4.sh"; then
+    echo "Failed to import slf4.sh"
+    exit 1
+  fi
+
+  return 0
+}
+
+# Constants
+BPKG_DL_URL="https://get.bpkg.sh"
+
+# External variables
+if [[ -z "${SETUP_LOCAL_BIN}" ]]; then SETUP_LOCAL_BIN=""; fi
+
+###########################
+###### Startup logic ######
+###########################
+
+# Get root directory of the project
+# https://stackoverflow.com/a/246128
+ST_SOURCE=${BASH_SOURCE[0]}
+while [[ -L "${ST_SOURCE}" ]]; do # resolve $ST_SOURCE until the file is no longer a symlink
+  ST_ROOT=$(cd -P "$(dirname "${ST_SOURCE}")" >/dev/null 2>&1 && pwd)
+  ST_SOURCE=$(readlink "${ST_SOURCE}")
+  [[ ${ST_SOURCE} != /* ]] && ST_SOURCE=${ST_ROOT}/${ST_SOURCE} # if $ST_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+ST_ROOT=$(cd -P "$(dirname "${ST_SOURCE}")" >/dev/null 2>&1 && pwd)
+ST_ROOT=$(realpath "${ST_ROOT}/..")
+
+if ! external_dependencies; then
+  echo "ERROR: External dependencies are not met"
+  exit 1
+fi
+
+if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
+  # This script was piped
+  logFatal "This script cannot be piped"
+elif [[ ${BASH_SOURCE[0]} != "${0}" ]]; then
+  # This script was sourced
+  logFatal "This script cannot be sourced"
+else
+  # This script was executed
+  setup_main "$@"
+  exit $?
+fi

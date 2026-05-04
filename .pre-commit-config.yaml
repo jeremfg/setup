@@ -5,7 +5,9 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=512']
+      - id: check-ast  # Python
       - id: check-case-conflict
+      - id: check-docstring-first  # Python
       - id: check-executables-have-shebangs  # Shell
       - id: check-shebang-scripts-are-executable  # Shell
       - id: check-merge-conflict
@@ -56,6 +58,52 @@ repos:
     rev: v0.14.0  # Latest version from Google
     hooks:
       - id: yamlfmt  # YAML
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.14.0
+    hooks:
+      - id: pretty-format-ini  # Ini
+        args: [--autofix]
+  - repo: https://gitlab.com/bmares/check-json5
+    rev: v1.0.0
+    hooks:
+      - id: check-json5  # json
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint  # Dockerfile
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.1
+    hooks:
+      - id: pyupgrade  # Python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      - id: ruff-check  # Python
+        args: ["--fix"]
+      - id: ruff-format  # Python
+  - repo: https://github.com/psf/black
+    rev: 26.1.0
+    hooks:
+      - id: black  # Python
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy  # Python
+        pass_filenames: true
+        args: ["--strict", "--config-file=mypy.ini"]
+        additional_dependencies:
+            - types-ldap3==2.9.13.20260408
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.3
+    hooks:
+      - id: bandit  # Python
+        args: ["-x", "test/", "-s", "B101"]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
   - repo: local
     hooks:
       - id: PSScriptAnalyzer
