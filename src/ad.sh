@@ -501,6 +501,8 @@ EOF
 Description=AD Logon Hook
 After=default.target
 ConditionUser=!root
+StartLimitIntervalSec=5min
+StartLimitBurst=1
 
 [Service]
 Type=oneshot
@@ -533,7 +535,7 @@ Description=Path unit to trigger AD logon hook on home directory ready file crea
 After=default.target
 
 [Path]
-PathExists=%h/${ready_file_rel}
+PathChanged=%h/${ready_file_rel}
 
 [Install]
 WantedBy=default.target
@@ -667,6 +669,7 @@ flock -n 9 || {
   elif [ \$(id -u) -eq "\${cur_id}" ]; then
     echo "\${ecode}" > "\${home_dir}/${ready_file_rel}"
   fi
+  chown "\${cur_id}":"domain users" "\${home_dir}/${ready_file_rel}"
 
   # Log Success/Failure and exit
   if [ "\${ecode}" -ne 0 ]; then
