@@ -386,6 +386,35 @@ zl_netbios_pdc() {
   fi
 }
 
+
+# Obtain the domain for the local server
+# Parameters:
+#   $1[out]: The FQDN domain
+zl_domain() {
+  local __result_var="${1}"
+
+  local fqdn
+  # Fetch Samba info for the given machine
+  # Extract the DC name
+  # Cleanup the value
+  # shellcheck disable=SC2312
+  if ! fqdn=$(sudo samba-tool domain info "127.0.0.1" |
+    awk -F': ' '/Domain/ {print $2}' |
+    tail -n 1 | tr -d '[:space:]' \
+    2>/dev/null); then
+    logError "Failed to retrieve FQDN for 127.0.0.1"
+    return 1
+  elif [[ -z "${fqdn}" ]]; then
+    logError "Domain for 127.0.0.1 is empty"
+    return 1
+  else
+    logInfo "Domain for 127.0.0.1 retrieved successfully: ${fqdn}"
+    eval "${__result_var}='${fqdn}'"
+  fi
+
+  return 0
+}
+
 # Obtain the FQDN for a DC's NetBIOS name
 # Parameters:
 #   $1[out]: The FQDN
