@@ -13,16 +13,18 @@ fi
 # Wait until DNS is answering for a specific domain
 #
 # Parameters:
-#   $1[in]: Domain to wait for
-#   $2[in]: DNS server to query. Optional, maybe unsupported.
-#   $3[in]: Timeout in seconds
+#   $1[out]: Resolved IP address for that domain
+#   $2[in]: Domain to wait for
+#   $3[in]: DNS server to query. Optional, maybe unsupported.
+#   $4[in]: Timeout in seconds
 # Returns:
 #   0: If DNS is answering
 #   1: If DNS is not answering
 nu_wait_dns() {
-  local domain="${1}"
-  local dns_server="${2}"
-  local timeout="${3}"
+  local __result_ip="${1}"
+  local domain="${2}"
+  local dns_server="${3}"
+  local timeout="${4}"
 
   local cmd end_time res
   if command -v nslookup &>/dev/null; then
@@ -36,6 +38,7 @@ nu_wait_dns() {
     return 1
   fi
 
+  ips=""
   end_time=$(($(date +%s) + timeout))
   while true; do
     case "${cmd}" in
@@ -45,6 +48,19 @@ nu_wait_dns() {
         cmd+=("${dns_server}")
       fi
       if res=$("${cmd[@]}"); then
+        ips=$(echo "${res}" | awk '/^Address: / {print $2}' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | xargs || true)
+        break
+      else
+        logTrace "No DNS answer: ${res}"
+      fi
+      ;;
+    dig)
+      cmd=(dig +short "${domain}")
+      if [[ -n ${dns_server} ]]; then
+        cmd+=("@${dns_server}")
+      fi
+      if res=$("${cmd[@]}"); then
+        ips=$(echo "${res}" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | xargs || true)
         break
       else
         logTrace "No DNS answer: ${res}"
@@ -52,6 +68,7 @@ nu_wait_dns() {
       ;;
     getent)
       if res=$(getent ahosts "${domain}"); then
+        ips=$(echo "${res}" | awk '{print $1}' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | xargs || true)
         break
       else
         logTrace "No DNS answer: ${res}"
@@ -72,6 +89,18 @@ nu_wait_dns() {
   done
 
   logInfo "DNS is answering: ${res}"
+  if [[ -n ${__result_ip} ]]; then
+    eval "${__result_ip}=''"
+    # Iterate over all IPs found until one is pingable
+    for ip in ${ips}; do
+      if nu_wait_ping "${ip}" 5; then
+        logInfo "DNS resolved to a pingable IP: ${ip}"
+        eval "${__result_ip}='${ip}'"
+        break
+      fi
+    done
+  fi
+
   return 0
 }
 

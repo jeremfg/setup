@@ -189,6 +189,26 @@ ipmi_power_off() {
   fi
 }
 
+# Graceful shutdown of the machine
+#
+# Returns:
+#   0: If the machine was signaled to power off
+#   1: If an error occurred
+ipmi_power_soft() {
+
+  local __result_status
+  if ! ipmi_exec __result_status "power" "soft"; then
+    logError "Failed to power off machine"
+    return 1
+  elif [[ "${__result_status}" == *"Down/Off"* ]]; then
+    logInfo "Machine powered off returned: ${__result_status}"
+    return 0
+  else
+    logError "Failed to soft power off machine"
+    return 1
+  fi
+}
+
 # Wait for the machine to be off
 #
 # Parameters:
