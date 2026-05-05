@@ -171,6 +171,9 @@ cm_no_sleep() {
   elif ! cn_set "${sleep_dconf}" "org.cinnamon.desktop.screensaver" "idle-activation-enabled" "false" "true"; then
     logError "Failed to set Cinnamon idle-activation-enabled setting"
     return 1
+  elif ! cn_set "${sleep_dconf}" "org.cinnamon.settings-daemon.plugins.power" "sleep-display-ac" "0" "true"; then
+    logError "Failed to set Cinnamon sleep-display-ac setting"
+    return 1
   else
     logDebug "Successfully configured Cinnamon sleep settings"
   fi
