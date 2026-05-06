@@ -496,10 +496,10 @@ ssh_identity_create() {
 #
 # Parameters:
 #   $1[in]: The public key to authorize
-#   $2[in]: The username
-#   $3[in]: The password
-#   $4[in]: The host
-#   $5[in]: The port
+#   $2[in]: The username (If omitted, current user will be assumed)
+#   $3[in]: The password (Omit if authorizing locally)
+#   $4[in]: The host (Omit if authorizing locally)
+#   $5[in]: The port (Omit if authorizing locally)
 # Returns:
 #   0: If the identity was authorized
 #   1: If an error occurred
@@ -510,21 +510,51 @@ ssh_identity_authorize() {
   local __ssh_host="${4}"
   local __ssh_port="${5}"
 
-  local _auth_cmd _auth_res _auth_code
-  # First check if the key is already authorized
+  local _auth_cmd _auth_res _auth_code _homedir _auth_file
+
+  # First, determine the home directory of the user
+  if [[ -z ${__ssh_host} ]] && [[ -n ${__ssh_user} ]]; then
+    if ! _homedir=$(getent passwd "${__ssh_user}"); then
+      logError "Failed to get home directory of user ${__ssh_user}"
+      return 1
+    else
+      _homedir=$(echo "${_homedir}" | cut -d: -f6)
+    fi
+  else
+    _homedir="~"
+  fi
+  _auth_file="${_homedir}/.ssh/authorized_keys"
+
+  # Second, check if the key is already authorized
   # shellcheck disable=SC2088
-  _auth_cmd=(grep -q "'${__ssh_pub_key}'" "~/.ssh/authorized_keys")
-  ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
-  _auth_code=$?
+  _auth_cmd=(grep -q "'${__ssh_pub_key}'" "${_auth_file}")
+  if [[ -z ${__ssh_host} ]]; then
+    _auth_res=$("${_auth_cmd[@]}" 2>&1)
+    _auth_code=$?
+  else
+    ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
+    _auth_code=$?
+    if [[ ${_auth_code} -eq 201 ]]; then
+      _auth_code=1 # Error code was remote, not local
+    elif [[ ${_auth_code} -eq 1 ]]; then
+      logError "Failed to check for existing identity: ${_auth_res}"
+      return 1
+    fi
+  fi
   if [[ ${_auth_code} -eq 0 ]]; then
     logInfo "Identity already authorized"
     return 0
-  elif [[ ${_auth_code} -eq 201 ]]; then
+  elif [[ ${_auth_code} -eq 1 ]]; then
     logInfo "Identity not present. Adding it..."
     # shellcheck disable=SC2088
-    _auth_cmd=(echo "${__ssh_pub_key}" ">>" "~/.ssh/authorized_keys")
-    ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
-    _auth_code=$?
+    _auth_cmd=(echo "${__ssh_pub_key}" ">>" "${_auth_file}")
+    if [[ -z ${__ssh_host} ]]; then
+      _auth_res=$("${_auth_cmd[@]}" 2>&1)
+      _auth_code=$?
+    else
+      ssh_exec _auth_res "${__ssh_user}" "${__ssh_pwd}" "${__ssh_host}" "${__ssh_port}" "${_auth_cmd[@]}"
+      _auth_code=$?
+    fi
     if [[ ${_auth_code} -ne 0 ]]; then
       logError "Failed to authorize identity"
       return 1
