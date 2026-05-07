@@ -200,7 +200,7 @@ ipmi_power_soft() {
   if ! ipmi_exec __result_status "power" "soft"; then
     logError "Failed to power off machine"
     return 1
-  elif [[ "${__result_status}" == *"Down/Off"* ]]; then
+  elif [[ "${__result_status}" == *"Soft"* ]]; then
     logInfo "Machine powered off returned: ${__result_status}"
     return 0
   else
