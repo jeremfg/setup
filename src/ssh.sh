@@ -211,10 +211,10 @@ ssh_next_key_name() {
   # Find an available filename
   local myfile
   local i=0
-  while [[ -f "${SSH_DIR}/${prefix}_${i}" ]]; do
+  while [[ -f "${HOME}/${SSH_DIR_REL}/${prefix}_${i}" ]]; do
     ((i++))
   done
-  myfile="${SSH_DIR}/${prefix}_${i}"
+  myfile="${HOME}/${SSH_DIR_REL}/${prefix}_${i}"
   logInfo "Filename generation: ${myfile}"
   touch "${myfile}"
   eval "${_filename}='${myfile}'"
@@ -234,9 +234,9 @@ ssh_ask() {
   local private_key="$1"
   local suggested_key="$2"
 
-  if [[ ! -d "${SSH_DIR}" ]]; then
-    logInfo "Creating SSH directory: ${SSH_DIR}"
-    if ! file_ensure_dir "${SSH_DIR}"; then
+  if [[ ! -d "${HOME}/${SSH_DIR_REL}" ]]; then
+    logInfo "Creating SSH directory: ${HOME}/${SSH_DIR_REL}"
+    if ! file_ensure_dir "${HOME}/${SSH_DIR_REL}"; then
       logError "Failed to create SSH directory"
       return 1
     fi
@@ -245,7 +245,7 @@ ssh_ask() {
   # List all files in the .ssh dir
   local ssh_files=()
   local ssh_file
-  for ssh_file in "${SSH_DIR}"/*; do
+  for ssh_file in "${HOME}/${SSH_DIR_REL}"/*; do
     if [[ $(basename "${ssh_file}") == "authorized_keys" ]]; then
       : # Skip this file
     elif [[ $(basename "${ssh_file}") == "known_hosts" ]]; then
@@ -423,7 +423,7 @@ ssh_identity_create() {
   local _id_cmd _id_res _id_code
   # Try to read the public key if it exists
   # shellcheck disable=SC2088
-  _id_cmd=(test -e "${SSH_IDENTITY_PUB_KEY}")
+  _id_cmd=(test -e "~/${SSH_IDENTITY_PUB_KEY_REL}")
   if [[ -z ${__ssh_host} ]]; then
     _id_res=$("${_id_cmd[@]}" 2>&1)
     _id_code=$?
@@ -440,7 +440,7 @@ ssh_identity_create() {
   if [[ ${_id_code} -eq 0 ]]; then
     logInfo "Identity already exists"
     # shellcheck disable=SC2088
-    _id_cmd=(cat "${SSH_IDENTITY_PUB_KEY}")
+    _id_cmd=(cat "~/${SSH_IDENTITY_PUB_KEY_REL}")
     if [[ -z ${__ssh_host} ]]; then
       _id_res=$("${_id_cmd[@]}" 2>&1)
       _id_code=$?
@@ -457,7 +457,7 @@ ssh_identity_create() {
   elif [[ ${_id_code} -eq 1 ]]; then
     logInfo "Creating identity"
     # shellcheck disable=SC2088
-    _id_cmd=(ssh-keygen -t ed25519 -f "${SSH_IDENTITY_KEY}" -N)
+    _id_cmd=(ssh-keygen -t ed25519 -f "~/${SSH_IDENTITY_KEY_REL}" -N)
     if [[ -z ${__ssh_host} ]]; then
       _id_cmd+=("")
       _id_res=$("${_id_cmd[@]}" 2>&1)
@@ -472,7 +472,7 @@ ssh_identity_create() {
       return 1
     fi
     # shellcheck disable=SC2088
-    _id_cmd=(cat "${SSH_IDENTITY_PUB_KEY}")
+    _id_cmd=(cat "~/${SSH_IDENTITY_PUB_KEY_REL}")
     if [[ -z ${__ssh_host} ]]; then
       _id_res=$("${_id_cmd[@]}" 2>&1)
       _id_code=$?
@@ -510,24 +510,31 @@ ssh_identity_authorize() {
   local __ssh_host="${4}"
   local __ssh_port="${5}"
 
-  local _auth_cmd _auth_res _auth_code _homedir _auth_file
-
+  local _auth_cmd _auth_res _auth_code _homedir _auth_file _need_sudo
+  _need_sudo=0
   # First, determine the home directory of the user
-  if [[ -z ${__ssh_host} ]] && [[ -n ${__ssh_user} ]]; then
+  if [[ -z "${__ssh_host}" ]] && [[ -n "${__ssh_user}" ]]; then
     if ! _homedir=$(getent passwd "${__ssh_user}"); then
       logError "Failed to get home directory of user ${__ssh_user}"
       return 1
     else
       _homedir=$(echo "${_homedir}" | cut -d: -f6)
     fi
+    if [[ "$(id -u "${__ssh_user}" || true)" != "$(id -u || true)" ]]; then
+      logWarn "Authorizing key for a different user (${__ssh_user}). This will require elevated permissions."
+      _need_sudo=1
+    fi
   else
     _homedir="~"
   fi
-  _auth_file="${_homedir}/.ssh/authorized_keys"
+  _auth_file="${_homedir}/${SSH_DIR_REL}/authorized_keys"
 
   # Second, check if the key is already authorized
-  # shellcheck disable=SC2088
-  _auth_cmd=(grep -q "'${__ssh_pub_key}'" "${_auth_file}")
+  _auth_cmd=()
+  if [[ ${_need_sudo} -eq 1 ]]; then
+    _auth_cmd+=(sudo)
+  fi
+  _auth_cmd+=(grep -Fqx "${__ssh_pub_key}" "${_auth_file}")
   if [[ -z ${__ssh_host} ]]; then
     _auth_res=$("${_auth_cmd[@]}" 2>&1)
     _auth_code=$?
@@ -546,8 +553,12 @@ ssh_identity_authorize() {
     return 0
   elif [[ ${_auth_code} -eq 1 ]]; then
     logInfo "Identity not present. Adding it..."
-    # shellcheck disable=SC2088
-    _auth_cmd=(echo "${__ssh_pub_key}" ">>" "${_auth_file}")
+    _auth_cmd=()
+    if [[ ${_need_sudo} -eq 1 ]]; then
+      _auth_cmd+=(sudo)
+    fi
+    _auth_cmd+=(sh -c "printf '%s\n' \"\${1}\" >> \"\${2}\"")
+    _auth_cmd+=("--" "${__ssh_pub_key}" "${_auth_file}")
     if [[ -z ${__ssh_host} ]]; then
       _auth_res=$("${_auth_cmd[@]}" 2>&1)
       _auth_code=$?
@@ -704,10 +715,10 @@ EOF
 
 # Global variables
 SSH_INIT_FILE="ssh_init.sh"
-SSH_DIR="${HOME}/.ssh"
+SSH_DIR_REL=".ssh"
 SSH_USER_INPUT_TIMEOUT=65535
-SSH_IDENTITY_KEY="${SSH_DIR}/id_ed25519"
-SSH_IDENTITY_PUB_KEY="${SSH_IDENTITY_KEY}.pub"
+SSH_IDENTITY_KEY_REL="${SSH_DIR_REL}/id_ed25519"
+SSH_IDENTITY_PUB_KEY_REL="${SSH_IDENTITY_KEY_REL}.pub"
 
 ###########################
 ###### Startup logic ######
