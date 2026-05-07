@@ -89,16 +89,26 @@ nu_wait_dns() {
   done
 
   logInfo "DNS is answering: ${res}"
+
+  # Best effort, test each IPs returned to see which one will work for us
   if [[ -n ${__result_ip} ]]; then
+    local __actual_ip=""
     eval "${__result_ip}=''"
     # Iterate over all IPs found until one is pingable
     for ip in ${ips}; do
-      if nu_wait_ping "${ip}" 5; then
+      if nu_wait_ping "${ip}" 0; then
         logInfo "DNS resolved to a pingable IP: ${ip}"
-        eval "${__result_ip}='${ip}'"
+        __actual_ip="${ip}"
+        logInfo "Found pingable IP: ${__actual_ip} for ${domain}"
         break
       fi
     done
+    # If failed, just pick the first one
+    if [[ -z ${__actual_ip} ]]; then
+      __actual_ip="${ips%% *}"
+      logWarn "None of the IPs returned by DNS are pingable. Picking the first one: ${__actual_ip}"
+    fi
+    eval "${__result_ip}='${__actual_ip}'"
   fi
 
   return 0
