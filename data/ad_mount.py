@@ -51,7 +51,7 @@ def mount_main() -> None:
     Main function to be called for mounting drives based on AD GPOs.
     """
 
-    dc = DC()
+    dc = DC(User())
     dc.connect()
     logger.info("Successfully connected to LDAP server")
 
@@ -63,16 +63,22 @@ def mount_main() -> None:
 class User:
     """Represents a user."""
 
-    def __init__(self, username: str = "", uid: int = 0, sid: str = ""):
+    def __init__(
+        self,
+        username: str = _pwd.getpwuid(os.getuid()).pw_name,
+        uid: int = os.getuid(),
+        sid: str = "",
+    ):
         """Initializes a User object with the given username, UID and SID."""
 
         self.username = username
         self.uid = uid
-        self.sid = sid
         self.sid_set: set[str] = set()
-        self.sid_set.add(
-            self.sid
-        )  # Could match the user SID itself and not just a group.
+        if sid and len(sid) > 0:
+            self.sid = sid
+            self.sid_set.add(
+                self.sid
+            )  # Could match the user SID itself and not just a group.
 
         self._cur_kerberos_cache: str | None = None
 
@@ -857,7 +863,6 @@ class SysvolCache:
             logger.info(f"Creating UNC folder '{path}'")
             # Extract server portion
             server = path.split("\\")[2]
-            os.environ["KRB5CCNAME"] = self.cur_user.kerberos_cache
             smbclient.register_session(server)
             if not self._smb_exists(path):
                 smbclient.makedirs(path)
@@ -882,7 +887,6 @@ class SysvolCache:
             logger.info(f"Creating UNC folder '{path}'")
             # Extract server portion
             server = path.split("\\")[2]
-            os.environ["KRB5CCNAME"] = self.cur_user.kerberos_cache
             smbclient.register_session(server)
             if self._smb_exists(path):
                 smbclient.rmdir(path)
@@ -908,9 +912,10 @@ class SysvolCache:
 class DC:
     """Represents the Domain Controller and provides methods to connect to it and retrieve necessary information."""
 
-    def __init__(self) -> None:
+    def __init__(self, cur_user: User) -> None:
         """Initializes the DC object by retrieving the domain and closest DC information."""
 
+        self.user = cur_user
         self.domain = self.__get_domain()
         self.dc = self.__get_closest_dc()
         self.ldap: MyLdap | None = None
@@ -1062,6 +1067,7 @@ class DC:
 
         server = Server(f"ldap://{self.dc}", get_info=ALL)
         conn = Connection(server, authentication=SASL, sasl_mechanism=GSSAPI)
+        os.environ["KRB5CCNAME"] = self.user.kerberos_cache  # or the desired cache path
         try:
             conn.bind()
         except GSSError as e:
