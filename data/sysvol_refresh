@@ -59,6 +59,32 @@ wait_for_creds() {
   __res_ccache="${1}"
   timeout="${2}"
 
+  # Obtain credentials
+  __ccache_file=""
+  __klist_res=1
+  for i in $(seq 1 "${timeout}"); do
+    if [ "${__klist_res}" -eq 0 ]; then
+      break
+    elif ! sysvol_ccache_search __ccache_file; then
+      __klist_res=1
+      logInfo "No crediential cache (attempt ${i}/${timeout})"
+      sleep 1
+    else
+      __klist_res=0
+      eval "${__res_ccache}='${__ccache_file}'"
+      logInfo "Credential cache found: ${__ccache_file} (attempt ${i}/${timeout})"
+    fi
+  done
+
+  return "${__klist_res}"
+}
+
+# Search for the credential cache file
+# Parameters:
+#   $1[out]: The credential cache file found
+sysvol_ccache_search() {
+  __res_search="${1}"
+
   # Obtain user ID
   user=""
   if [ -n "${USER}" ]; then
@@ -77,49 +103,24 @@ wait_for_creds() {
     logInfo "Determined user ID ${user_id} for ${user}"
   fi
 
-  # Obtain credentials
-  __klist_res=1
-  for i in $(seq 1 "${timeout}"); do
-    # Focus on klist at first
-    if [ "${__klist_res}" -ne 0 ]; then
-      if klist -s; then
-        logDebug "Kerberos ticket found, proceeding with SYSVOL refresh"
-        __klist_res=0
-      else
-        logDebug "No Kerberos ticket found, waiting for klist to complete (attempt ${i}/${timeout})"
-        sleep 1
-        continue
-      fi
+  # Samba uses its own private Heimdal which cannot reach the SSSD KCM socket.
+  # SSSD creates a FILE ccache alongside KCM at login (e.g. /tmp/krb5cc_UID_XXXXXX).
+  # Locate the most recently modified one that still holds a valid TGT.
+  _ccache_spec=""
+  _ccache_mtime=0
+  for _ccfile in /tmp/krb5cc_${user_id} "/tmp/krb5cc_${user_id}_"*; do
+    [ -f "${_ccfile}" ] || continue
+    _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
+    if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
+      _ccache_mtime="${_mtime}"
+      _ccache_spec="FILE:${_ccfile}"
     fi
-
-    # Once klist is successful, look for the ccache file
-
-    # Samba uses its own private Heimdal which cannot reach the SSSD KCM socket.
-    # SSSD creates a FILE ccache alongside KCM at login (e.g. /tmp/krb5cc_UID_XXXXXX).
-    # Locate the most recently modified one that still holds a valid TGT.
-    _ccache_spec=""
-    _ccache_mtime=0
-    for _ccfile in /tmp/krb5cc_${user_id} "/tmp/krb5cc_${user_id}_"*; do
-      [ -f "${_ccfile}" ] || continue
-      _mtime=$(stat -c '%Y' "${_ccfile}" 2>/dev/null) || continue
-      if [ "${_mtime}" -gt "${_ccache_mtime}" ] && klist -s -c "FILE:${_ccfile}" 2>/dev/null; then
-        _ccache_mtime="${_mtime}"
-        _ccache_spec="FILE:${_ccfile}"
-      fi
-    done
-    if [ -z "${_ccache_spec}" ]; then
-      logError "No valid FILE ccache found for smbclient (user=${user}, uid=${user_id}) (attempt ${i}/${timeout})"
-    else
-      logInfo "Using FILE ccache ${_ccache_spec} for smbclient"
-      break
-    fi
-    sleep 1
   done
 
-  if [ -z "${_ccache_spec}" ] || [ "${__klist_res}" -ne 0 ]; then
+  if [ -z "${_ccache_spec}" ]; then
     return 1
   else
-    eval "${__res_ccache}='${_ccache_spec}'"
+    eval "${__res_search}='${_ccache_spec}'"
     return 0
   fi
 }

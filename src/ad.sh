@@ -448,8 +448,18 @@ on_login() {
 }
 
 # Don't execute if ready file isn't there
+process_code=0
 if [ ! -f "\${HOME}/${ready_file_rel}" ]; then
-  logger -t "\${LOGGER_NAME}" "Ready file \${HOME}/${ready_file_rel} not found. Exiting..."
+  logger -t "\${LOGGER_NAME}" "Ready file not found. Exiting..."
+  exit 0
+elif ! process_code=\$(cat "\${HOME}/${ready_file_rel}" 2>/dev/null); then
+  logger -t "\${LOGGER_NAME}" "Failed to read ready file. Exiting..."
+  exit 0
+elif [ -z "\${process_code}" ]; then
+  logger -t "\${LOGGER_NAME}" "Ready file is empty. Exiting..."
+  exit 0
+elif [ "\${process_code}" -ne 0 ]; then
+  logger -t "\${LOGGER_NAME}" "Ready file indicates an error in the PAM hook (\${process_code}). Exiting..."
   exit 0
 fi
 
@@ -470,9 +480,9 @@ if [ "\${result}" -ne 0 ]; then
 else
   # Remove the ready file
   if ! rm -f "\${HOME}/${ready_file_rel}"; then
-    logger -t "\${LOGGER_NAME}" "Failed to remove ready file at \${HOME}/${ready_file_rel}"
+    logger -t "\${LOGGER_NAME}" "Failed to remove ready file"
   else
-    logger -t "\${LOGGER_NAME}" "Removed ready file at \${HOME}/${ready_file_rel}"
+    logger -t "\${LOGGER_NAME}" "Removed ready file"
   fi
   logger -t "\${LOGGER_NAME}" "Successfully executed AD logon hook script"
   exit \${result}
