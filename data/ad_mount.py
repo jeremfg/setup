@@ -24,6 +24,7 @@ import sys
 from gssapi.exceptions import GSSError
 from smbprotocol.exceptions import NtStatus, SMBOSError
 from gi.repository import Gio, GLib
+import krb5 as _krb5  # type: ignore[import-not-found]
 
 # Add pyDescribeNTSecurityDescriptor tp the PATH
 SETUP_ROOT = Path(__file__).parent.parent
@@ -80,43 +81,8 @@ class User:
                 self.sid
             )  # Could match the user SID itself and not just a group.
 
-        self._cur_kerberos_cache: str | None = None
-
-    @property
-    def kerberos_cache(self) -> str:
-        """Returns the Kerberos cache name for this user, which is needed for GSSAPI authentication."""
-
-        if self._cur_kerberos_cache:
-            return self._cur_kerberos_cache
-
-        latest_mtime = 0.0
-        latest_ccfile = None
-        for _ccfile in Path("/tmp").glob(f"krb5cc_{self.uid}_*"):  # nosec B108
-            if not _ccfile.is_file():
-                continue
-            try:
-                mtime = _ccfile.stat().st_mtime
-            except BaseException as e:
-                logger.warning(
-                    f"Could not stat Kerberos cache file '{_ccfile}': {str(e)}"
-                )
-                continue
-            if latest_mtime < mtime or latest_mtime == 0.0:
-                try:
-                    cmd = ["klist", "-s", "-c", f"FILE:{_ccfile}"]
-                    subprocess.run(cmd, check=True, shell=False)  # nosec B603
-                except subprocess.CalledProcessError as e:
-                    if e.returncode == 1:
-                        logger.warning(f"Kerberos cache file '{_ccfile}' is expired")
-                    raise e
-                latest_mtime = mtime
-                latest_ccfile = _ccfile
-
-        if latest_ccfile is None:
-            raise ValueError(f"No valid Kerberos cache file found for UID {self.uid}")
-
-        self._cur_kerberos_cache = f"FILE:{latest_ccfile}"
-        return self._cur_kerberos_cache
+        # Kerberos tickets are managed by SSSD KCM (see /etc/krb5.conf
+        # default_ccache_name = KCM:). No FILE scanning needed.
 
 
 class MyLdap(ntsec.LDAPSearcher):  # type: ignore[misc]
@@ -203,6 +169,9 @@ class SysvolCache:
 
         # Cache some values
         self._cur_user: User | None = None
+        # KCM propagation to gvfsd must happen only once — killing gvfsd after
+        # the first successful mount would destroy all existing connections.
+        self._kerberos_env_ready: bool = False
 
         # Precompile regex to extract GPO ID from XML file paths
         e_path = re.escape(str(self.cache_path))
@@ -575,8 +544,105 @@ class SysvolCache:
                 loop.quit()
             return False  # Stop the timeout
 
+        # Propagate a Kerberos ccache to the gvfsd D-Bus activation environment.
+        # Done only once per SysvolCache lifetime: killing gvfsd while it is
+        # serving already-mounted shares would destroy those connections.
+        #
+        # gvfsd-smb uses Samba's bundled Kerberos library which cannot connect
+        # to the KCM daemon socket.  We therefore export the current TGT from
+        # KCM into a deterministic FILE ccache using `kinit -R -c FILE:...` and
+        # pass that FILE path to gvfsd instead of KCM:.
+        # The Python/LDAP side keeps using KCM: natively via krb5.conf
+        # default_ccache_name — no KRB5CCNAME override needed in this process.
+        if not self._kerberos_env_ready:
+            uid = self.cur_user.uid
+            gvfsd_ccache = f"FILE:/tmp/krb5cc_gvfsd_{uid}"  # nosec B108
+            try:
+                # Copy all credentials from the default KCM ccache into a
+                # deterministic FILE ccache.  gvfsd-smb uses Samba's bundled
+                # Kerberos which cannot connect to the KCM daemon socket, so
+                # it needs a plain FILE ccache.
+                _ctx = _krb5.init_context()
+                _src = _krb5.cc_default(_ctx)
+                _dst = _krb5.cc_resolve(_ctx, gvfsd_ccache.encode())
+                _princ = _krb5.cc_get_principal(_ctx, _src)
+                _krb5.cc_initialize(_ctx, _dst, _princ)
+                for _cred in _src:
+                    _krb5.cc_store_cred(_ctx, _dst, _cred)
+                os.chmod(f"/tmp/krb5cc_gvfsd_{uid}", 0o600)  # nosec B108
+                logger.debug(
+                    f"Copied KCM ccache to {gvfsd_ccache} for gvfsd-smb compatibility"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to copy KCM ccache to FILE ({e}); "
+                    "falling back to KCM: (may fail with Samba's bundled Kerberos)"
+                )
+                gvfsd_ccache = "KCM:"
+            try:
+                subprocess.run(  # nosec B603 B607
+                    [
+                        "dbus-update-activation-environment",
+                        "--systemd",
+                        f"KRB5CCNAME={gvfsd_ccache}",
+                    ],
+                    check=True,
+                    shell=False,
+                )
+                logger.debug(
+                    f"Propagated KRB5CCNAME={gvfsd_ccache} to D-Bus/systemd session environment"
+                )
+                # gvfsd-smb is a child of gvfsd and inherits its environment;
+                # killing gvfsd forces a clean restart with the updated env.
+                subprocess.run(
+                    ["pkill", "-f", "gvfsd-smb"], check=False, shell=False
+                )  # nosec B603 B607
+                subprocess.run(
+                    ["pkill", "-x", "gvfsd"], check=False, shell=False
+                )  # nosec B603 B607
+                time.sleep(1.5)  # give gvfsd time to exit before D-Bus re-activates it
+                self._kerberos_env_ready = True
+            except Exception as e:
+                logger.warning(f"Could not propagate ccache to D-Bus session: {e}")
+
+        # Resolve AD domain for the mount operation credentials.
+        ad_domain = ""
+        try:
+            ad_domain = subprocess.run(  # nosec B603 B607
+                ["realm", "list", "--name-only"],
+                check=True,
+                capture_output=True,
+                text=True,
+                shell=False,
+            ).stdout.strip()
+            logger.debug(f"Resolved AD domain: {ad_domain}")
+        except Exception as e:
+            logger.warning(f"Could not retrieve AD domain via realm: {e}")
+
+        mount_op = Gio.MountOperation()
+        mount_op.set_username(self.cur_user.username)
+        if ad_domain:
+            mount_op.set_domain(ad_domain)
+
+        def on_ask_password(
+            op: Gio.MountOperation,
+            message: str,
+            default_user: str,
+            default_domain: str,
+            flags: Gio.AskPasswordFlags,
+        ) -> None:
+            # gvfsd-smb emits ask-password when Kerberos auth failed silently.
+            # Replying HANDLED with no password would trigger an NTLM attempt
+            # with an empty password (EINVAL).  Abort so the error is explicit.
+            logger.warning(
+                "gvfsd-smb fell back to password auth — Kerberos ticket not "
+                "accessible in gvfsd-smb's environment. Aborting mount."
+            )
+            op.reply(Gio.MountOperationResult.ABORTED)
+
+        mount_op.connect("ask-password", on_ask_password)
         gvfs_file.mount_enclosing_volume(
-            Gio.MountMountFlags.NONE, None, None, mount_done, None
+            Gio.MountMountFlags.NONE, mount_op, None, mount_done, None
         )
 
         GLib.timeout_add_seconds(
@@ -586,7 +652,10 @@ class SysvolCache:
 
         if result_holder["error"]:
             if isinstance(result_holder["error"], GLib.Error):
-                logger.warning(f"SMB URL '{smb_url}' is already mounted")
+                if result_holder["error"].code == Gio.IOErrorEnum.ALREADY_MOUNTED:
+                    logger.warning(f"SMB URL '{smb_url}' is already mounted")
+                else:
+                    raise result_holder["error"]
             elif isinstance(result_holder["error"], BaseException):
                 raise result_holder["error"]
             else:
@@ -1067,7 +1136,8 @@ class DC:
 
         server = Server(f"ldap://{self.dc}", get_info=ALL)
         conn = Connection(server, authentication=SASL, sasl_mechanism=GSSAPI)
-        os.environ["KRB5CCNAME"] = self.user.kerberos_cache  # or the desired cache path
+        # KRB5CCNAME is not set explicitly: krb5.conf specifies
+        # default_ccache_name = KCM:, so GSSAPI finds the ticket automatically.
         try:
             conn.bind()
         except GSSError as e:
