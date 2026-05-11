@@ -402,23 +402,29 @@ class SysvolCache:
             if use_letter and len(letter) > 0:
                 label = label + f" ({letter})"
 
-            if action in ("C", "U"):
-                logger.info(
-                    f"Mounting '{name}' as '{label}' to '{path}' (persistent={is_persistent})"
-                )
-                self._mount(path, label, is_persistent)
-            elif action == "D":
-                logger.warning(f"Removing '{name}' as '{label}'")
-                self._unmount(path, label)
-            elif action == "R":
-                logger.warning(
-                    f"Replacing '{name}' as '{label}' to '{path}' (persistent={is_persistent})"
-                )
-                self._unmount(path, label)
-                self._mount(path, label, is_persistent)
-            else:
-                logger.warning(
-                    f"Unsupported Drive action='{action}' for '{name}'. Skipping."
+            try:
+                if action in ("C", "U"):
+                    logger.info(
+                        f"Mounting '{name}' as '{label}' to '{path}' (persistent={is_persistent})"
+                    )
+                    self._mount(path, label, is_persistent)
+                elif action == "D":
+                    logger.warning(f"Removing '{name}' as '{label}'")
+                    self._unmount(path, label)
+                elif action == "R":
+                    logger.warning(
+                        f"Replacing '{name}' as '{label}' to '{path}' (persistent={is_persistent})"
+                    )
+                    self._unmount(path, label)
+                    self._mount(path, label, is_persistent)
+                else:
+                    logger.warning(
+                        f"Unsupported Drive action='{action}' for '{name}'. Skipping."
+                    )
+                    continue
+            except Exception as e:
+                logger.error(
+                    f"Drive action='{action}' for '{name}' ('{path}') failed: {e}; skipping"
                 )
                 continue
 
@@ -631,12 +637,16 @@ class SysvolCache:
             default_domain: str,
             flags: Gio.AskPasswordFlags,
         ) -> None:
-            # gvfsd-smb emits ask-password when Kerberos auth failed silently.
-            # Replying HANDLED with no password would trigger an NTLM attempt
-            # with an empty password (EINVAL).  Abort so the error is explicit.
+            # gvfsd-smb emits ask-password when it cannot authenticate
+            # silently.  This can happen when Kerberos auth fails (wrong realm,
+            # expired ticket, SPN mismatch), the server requires NTLM-only, or
+            # the server is unreachable and Samba falls through to a credential
+            # retry.  We have no password to supply; abort so the mount fails
+            # with a clear error rather than an empty-password NTLM attempt.
             logger.warning(
-                "gvfsd-smb fell back to password auth — Kerberos ticket not "
-                "accessible in gvfsd-smb's environment. Aborting mount."
+                f"gvfsd-smb asked for credentials (message={message!r}); "
+                "Kerberos may have failed or the server is unreachable / "
+                "NTLM-only.  Aborting mount — will retry next login."
             )
             op.reply(Gio.MountOperationResult.ABORTED)
 
@@ -898,18 +908,24 @@ class SysvolCache:
                     f"Folder Properties missing 'path' attribute in '{xml_file}' for '{name}'"
                 )
             path = self._expand_var(path)
-            if action in ("C", "U"):
-                self._create_folder(path)
-            elif action == "D":
-                self._delete_folder(path)
-            elif action == "R":
-                self._delete_folder(path)
-                self._create_folder(path)
-            else:
-                logger.warning(
-                    f"Unsupported Folder action='{action}' for '{name}'. Skipping."
+            try:
+                if action in ("C", "U"):
+                    self._create_folder(path)
+                elif action == "D":
+                    self._delete_folder(path)
+                elif action == "R":
+                    self._delete_folder(path)
+                    self._create_folder(path)
+                else:
+                    logger.warning(
+                        f"Unsupported Folder action='{action}' for '{name}'. Skipping."
+                    )
+                    continue
+            except Exception as e:
+                logger.error(
+                    f"Folder action='{action}' for '{name}' ('{path}') failed: {e}; skipping"
                 )
-                return
+                continue
 
     def _smb_exists(self, path: str) -> bool:
         """Checks if the given SMB path exists."""
