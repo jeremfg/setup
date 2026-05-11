@@ -550,41 +550,43 @@ class SysvolCache:
                 loop.quit()
             return False  # Stop the timeout
 
-        # Propagate a Kerberos ccache to the gvfsd D-Bus activation environment.
-        # Done only once per SysvolCache lifetime: killing gvfsd while it is
-        # serving already-mounted shares would destroy those connections.
-        #
-        # gvfsd-smb uses Samba's bundled Kerberos library which cannot connect
-        # to the KCM daemon socket.  We therefore export the current TGT from
-        # KCM into a deterministic FILE ccache using `kinit -R -c FILE:...` and
-        # pass that FILE path to gvfsd instead of KCM:.
+        # Always refresh the FILE ccache snapshot from KCM so that gvfsd-smb
+        # gets a current TGT even after SSSD has auto-renewed the ticket.
+        # gvfsd-smb uses Samba's bundled Kerberos which cannot connect to the
+        # KCM daemon socket; it reads KRB5CCNAME at (re-)authentication time,
+        # so the FILE must stay fresh across the session lifetime.
         # The Python/LDAP side keeps using KCM: natively via krb5.conf
         # default_ccache_name — no KRB5CCNAME override needed in this process.
+        uid = self.cur_user.uid
+        gvfsd_ccache = f"FILE:/tmp/krb5cc_gvfsd_{uid}"  # nosec B108
+        try:
+            # Copy all credentials from the default KCM ccache into a
+            # deterministic FILE ccache.  gvfsd-smb uses Samba's bundled
+            # Kerberos which cannot connect to the KCM daemon socket, so
+            # it needs a plain FILE ccache.
+            _ctx = _krb5.init_context()
+            _src = _krb5.cc_default(_ctx)
+            _dst = _krb5.cc_resolve(_ctx, gvfsd_ccache.encode())
+            _princ = _krb5.cc_get_principal(_ctx, _src)
+            _krb5.cc_initialize(_ctx, _dst, _princ)
+            for _cred in _src:
+                _krb5.cc_store_cred(_ctx, _dst, _cred)
+            os.chmod(f"/tmp/krb5cc_gvfsd_{uid}", 0o600)  # nosec B108
+            logger.debug(
+                f"Copied KCM ccache to {gvfsd_ccache} for gvfsd-smb compatibility"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to copy KCM ccache to FILE ({e}); "
+                "falling back to KCM: (may fail with Samba's bundled Kerberos)"
+            )
+            gvfsd_ccache = "KCM:"
+
+        # Propagate KRB5CCNAME to the gvfsd D-Bus activation environment and
+        # restart gvfsd exactly once per SysvolCache lifetime.  Killing gvfsd
+        # while it is serving already-mounted shares would destroy those
+        # connections, so we must not do it on every mount call.
         if not self._kerberos_env_ready:
-            uid = self.cur_user.uid
-            gvfsd_ccache = f"FILE:/tmp/krb5cc_gvfsd_{uid}"  # nosec B108
-            try:
-                # Copy all credentials from the default KCM ccache into a
-                # deterministic FILE ccache.  gvfsd-smb uses Samba's bundled
-                # Kerberos which cannot connect to the KCM daemon socket, so
-                # it needs a plain FILE ccache.
-                _ctx = _krb5.init_context()
-                _src = _krb5.cc_default(_ctx)
-                _dst = _krb5.cc_resolve(_ctx, gvfsd_ccache.encode())
-                _princ = _krb5.cc_get_principal(_ctx, _src)
-                _krb5.cc_initialize(_ctx, _dst, _princ)
-                for _cred in _src:
-                    _krb5.cc_store_cred(_ctx, _dst, _cred)
-                os.chmod(f"/tmp/krb5cc_gvfsd_{uid}", 0o600)  # nosec B108
-                logger.debug(
-                    f"Copied KCM ccache to {gvfsd_ccache} for gvfsd-smb compatibility"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to copy KCM ccache to FILE ({e}); "
-                    "falling back to KCM: (may fail with Samba's bundled Kerberos)"
-                )
-                gvfsd_ccache = "KCM:"
             try:
                 subprocess.run(  # nosec B603 B607
                     [
