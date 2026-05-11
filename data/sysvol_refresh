@@ -192,7 +192,9 @@ sysvol_mount() {
     __res=1
   fi
 
-  logInfo "Successfully mounted SYSVOL at ${SYSVOL_MOUNT_POINT}"
+  if [ "${__res}" -eq 0 ]; then
+    logInfo "Successfully mounted SYSVOL at ${SYSVOL_MOUNT_POINT}"
+  fi
   return "${__res}"
 }
 
