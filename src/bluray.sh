@@ -47,59 +47,44 @@ vlc_add_blu_ray_support() {
 vlc_add_java() {
   logInfo "Adding Java support to VLC media player for Blu-ray support"
 
-  if ! command -v java >/dev/null 2>&1; then
-    logWarn "Java is not installed, needed for BD-J support in VLC media player"
-    if ! pkg_install "openjdk-17-jre"; then
-      logError "Failed to install OpenJDK Java runtime for BD-J support in VLC media player"
-      return 1
-    else
-      logDebug "Successfully installed OpenJDK Java runtime for BD-J support in VLC media player"
-    fi
-  fi
-
-  # Construct JAVA_HOME path
-  local java_home
-  local java_path
-  if ! java_path=$(command -v java); then
-    logError "Failed to find Java executable for BD-J support in VLC media player"
+  # Always install the non-headless JRE — headless variants lack X11/AWT support
+  # which libbluray requires for BD-J menu rendering.
+  if ! pkg_install "openjdk-17-jre"; then
+    logError "Failed to install OpenJDK Java runtime for BD-J support in VLC media player"
     return 1
   else
-    logDebug "Successfully added Java support to VLC media player for Blu-ray support"
+    logDebug "Successfully installed OpenJDK Java runtime for BD-J support in VLC media player"
   fi
 
-  # Check if we have a simlink. If so, resolve it
-  if [[ -L "${java_path}" ]]; then
-    if ! java_path=$(readlink -f "${java_path}"); then
-      logError "Failed to resolve Java executable path for BD-J support in VLC media player"
-      return 1
-    else
-      logDebug "Successfully resolved Java executable path for BD-J support in VLC media player"
-    fi
+  # Construct JAVA_HOME from the known installation path rather than from
+  # 'which java', which may resolve to a different (e.g. headless) JVM.
+  local java_home="/usr/lib/jvm/java-17-openjdk-amd64"
+  if [[ ! -d "${java_home}" ]]; then
+    logError "Expected Java 17 JRE not found at ${java_home}"
+    return 1
   fi
 
-  java_home=$(dirname "$(dirname "${java_path}")")
   logInfo "Configuring JAVA_HOME to \"${java_home}\" for BD-J support in VLC media player"
 
-  # Add JAVA_HOME to global environment
+  # Add JAVA_HOME to global environment via /etc/environment.d/ so it is
+  # available to all desktop sessions (PAM/systemd), not just login shells.
   local file_ct
   file_ct=$(
     cat <<EOF
 # Installed by jeremfg/setup src/bluray.sh to add Java support for BD-J in VLC media player
-export JAVA_HOME="${java_home}"
-export PATH="\${JAVA_HOME}/bin:\${PATH}"
+JAVA_HOME=${java_home}
 EOF
   )
 
-  local env_file="/etc/profile.d/vlc-bluray-java.sh"
-  # shellcheck disable=SC1090
-  if ! echo "${file_ct}" | sudo tee "${env_file}" >/dev/null; then
+  local env_file="/etc/environment.d/vlc-bluray-java.conf"
+  if ! sudo mkdir -p "$(dirname "${env_file}")"; then
+    logError "Failed to create directory for environment file at $(dirname "${env_file}")"
+    return 1
+  elif ! echo "${file_ct}" | sudo tee "${env_file}" >/dev/null; then
     logError "Failed to create environment variable file for Java support in VLC media player at ${env_file}"
     return 1
   elif ! sudo chmod 644 "${env_file}"; then
-    logError "Failed to set permissions for environment variable file for Java support in VLC media player at ${env_file}"
-    return 1
-  elif ! source "${env_file}"; then
-    logError "Failed to source environment variable file for Java support in VLC media player at ${env_file}"
+    logError "Failed to set permissions for environment file for Java support in VLC media player at ${env_file}"
     return 1
   else
     logDebug "Successfully added Java support to VLC media player for Blu-ray support"
@@ -121,7 +106,7 @@ EOF
 
 vlc_update_keys() {
   logInfo "Updating KEYSDB.cfg for VLC Blu-ray support"
-  local keysdb_path="/usr/share/aacs/KEYDB.cfg"
+  local keysdb_path="/etc/xdg/aacs/KEYDB.cfg"
   local keysdb_url="https://vlc-bluray.whoknowsmy.name/files/KEYDB.cfg"
 
   if ! command -v wget >/dev/null 2>&1; then

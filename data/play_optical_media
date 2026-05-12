@@ -8,6 +8,9 @@ po_main() {
   mnt_point="$1"
   dev_path=""
   dev_info=""
+  # Ensure libbluray uses the correct Java (non-headless, with X11/AWT support)
+  # /etc/profile.d/ is not sourced by autorun handlers, so set it explicitly here.
+  export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
   log_info "Optical media insertion script started"
 
   # Log all arguments received and environment variables for debugging purposes
@@ -93,9 +96,9 @@ po_main() {
   fi
 
   # Main Logic handling the disc
-  if ! echo "${dev_info}" | grep -q "ID_CDROM_MEDIA=1"; then
+  if echo "${dev_info}" | grep -q "ID_CDROM_MEDIA=1"; then
     log_info "Media detected in drive ${dev_path}"
-    if ! echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_BD=1"; then
+    if echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_BD=1"; then
       log_info "Media in drive ${dev_path} is a Blu-ray disc"
       # Check if it's a video Blu-ray by looking for the presence of the BDMV folder
       if [ -d "${mnt_point}/BDMV" ]; then
@@ -105,7 +108,7 @@ po_main() {
         log_info "Blu-ray in drive ${dev_path} does not contain BDMV folder. Assuming it's a data Blu-ray."
       fi
     else
-      if ! echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_DVD=1"; then
+      if echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_DVD=1"; then
         log_info "Media in drive ${dev_path} is a DVD disc"
         # Check for the presence of VIDEO_TS to confirm it's a video DVD
         if [ -d "${mnt_point}/VIDEO_TS" ]; then
@@ -115,10 +118,10 @@ po_main() {
           log_info "DVD in drive ${dev_path} does not contain VIDEO_TS folder. Assuming it's a data DVD."
         fi
       else
-        if ! echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_CD=1"; then
+        if echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_CD=1"; then
           log_info "Media in drive ${dev_path} is a CD disc"
           # Extract number of tracks to determine if it's an audio CD
-          if ! echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_TRACK_COUNT_AUDIO="; then
+          if echo "${dev_info}" | grep -q "ID_CDROM_MEDIA_TRACK_COUNT_AUDIO="; then
             track_count=$(echo "${dev_info}" | grep "ID_CDROM_MEDIA_TRACK_COUNT_AUDIO=" | cut -d'=' -f2)
             if [ "${track_count}" -gt 2 ]; then
               log_info "CD in drive ${dev_path} has ${track_count} audio tracks. Assuming it's an audio CD."

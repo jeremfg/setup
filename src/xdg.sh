@@ -35,8 +35,22 @@ xdg_optical_autorun() {
 }
 
 xdg_register_mime() {
+  local setting_prefix="org.cinnamon.desktop.media-handling"
+
   if ! file_ensure_ini; then
     logError "Failed to ensure crudini is available for MIME type registration"
+    return 1
+  elif ! db_ensure_file "${XDG_DCONF}"; then
+    logError "Failed to ensure dconf database file for Cinnamon media-handling settings"
+    return 1
+  elif ! cn_set "${XDG_DCONF}" "${setting_prefix}" "automount" "true" "false"; then
+    logError "Failed to enable Cinnamon automount"
+    return 1
+  elif ! cn_set "${XDG_DCONF}" "${setting_prefix}" "automount-open" "true" "false"; then
+    logError "Failed to enable Cinnamon automount-open"
+    return 1
+  elif ! cn_set "${XDG_DCONF}" "${setting_prefix}" "autorun-never" "false" "false"; then
+    logError "Failed to disable Cinnamon autorun-never"
     return 1
   elif ! xdg_register_mime2 "x-content/video-bluray" "$(basename "${XDG_BD_APP}")"; then
     logError "Failed to register MIME type for Blu-ray discs"
@@ -54,7 +68,7 @@ xdg_register_mime() {
   return 0
 }
 
-# Register an actual MIME type
+# Register an actual MIME type and configure Cinnamon autorun for it.
 # Parameters
 #   $1: MIME type to register (e.g. "x-content/video-bluray")
 #   $2: Desktop entry to handle the MIME type (e.g. "xdg-bluray-handler.desktop")
@@ -75,6 +89,51 @@ xdg_register_mime2() {
     return 1
   else
     logInfo "Successfully registered MIME type ${mime_type} with optical autorun script as default handler"
+  fi
+
+  # Configure Cinnamon autorun for this MIME type globally via dconf
+  if command -v gsettings >/dev/null 2>&1; then
+    local setting_prefix="org.cinnamon.desktop.media-handling"
+    local current_ignore new_ignore current_start new_start
+
+    # Remove from ignore list (user may have picked "do nothing" previously)
+    if ! current_ignore=$(gsettings get "${setting_prefix}" autorun-x-content-ignore 2>/dev/null); then
+      logWarn "Failed to read ${setting_prefix} autorun-x-content-ignore"
+    else
+      new_ignore=$(CURRENT="${current_ignore}" MIME="${mime_type}" python3 -c "
+import os, ast
+raw = os.environ['CURRENT'].strip()
+lst = [] if raw == '@as []' else ast.literal_eval(raw)
+lst = [x for x in lst if x != os.environ['MIME']]
+print('@as []' if not lst else '[' + ', '.join(repr(x) for x in lst) + ']')
+")
+      if ! cn_set "${XDG_DCONF}" "${setting_prefix}" "autorun-x-content-ignore" "${new_ignore}" "false"; then
+        logError "Failed to remove ${mime_type} from ${setting_prefix} autorun-x-content-ignore"
+        return 1
+      fi
+    fi
+
+    # Ensure in start-app list
+    if ! current_start=$(gsettings get "${setting_prefix}" autorun-x-content-start-app 2>/dev/null); then
+      logWarn "Failed to read ${setting_prefix} autorun-x-content-start-app"
+    else
+      new_start=$(CURRENT="${current_start}" MIME="${mime_type}" python3 -c "
+import os, ast
+raw = os.environ['CURRENT'].strip()
+lst = [] if raw == '@as []' else ast.literal_eval(raw)
+if os.environ['MIME'] not in lst:
+    lst.append(os.environ['MIME'])
+print('@as []' if not lst else '[' + ', '.join(repr(x) for x in lst) + ']')
+")
+      if ! cn_set "${XDG_DCONF}" "${setting_prefix}" "autorun-x-content-start-app" "${new_start}" "false"; then
+        logError "Failed to add ${mime_type} to ${setting_prefix} autorun-x-content-start-app"
+        return 1
+      fi
+    fi
+
+    logDebug "Configured Cinnamon autorun for ${mime_type}"
+  else
+    logWarn "gsettings not found, skipping Cinnamon autorun configuration for ${mime_type}"
   fi
 
   return 0
@@ -154,6 +213,9 @@ XDG_CD_APP="/usr/share/applications/xdg-cd-handler.desktop"
 # Default MIME
 XDG_F_MIME="/etc/xdg/mimeapps.list"
 
+# dconf database for global Cinnamon media-handling settings
+XDG_DCONF="/etc/dconf/db/local.d/02-optical"
+
 ###########################
 ###### Startup logic ######
 ###########################
@@ -185,6 +247,8 @@ if ! source "${PREFIX}/lib/slf4.sh"; then
   exit 1
 elif ! source "${XD_ROOT}/src/file.sh"; then
   logFatal "Failed to import file.sh"
+elif ! source "${XD_ROOT}/src/cinnamon.sh"; then
+  logFatal "Failed to import cinnamon.sh"
 fi
 
 if [[ -p /dev/stdin ]] && [[ -z ${BASH_SOURCE[0]} ]]; then
