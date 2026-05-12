@@ -447,6 +447,8 @@ on_login() {
   return 0
 }
 
+result=0
+
 # Don't execute if ready file isn't there
 process_code=0
 if [ ! -f "\${HOME}/${ready_file_rel}" ]; then
@@ -454,53 +456,49 @@ if [ ! -f "\${HOME}/${ready_file_rel}" ]; then
   exit 0
 elif ! process_code=\$(cat "\${HOME}/${ready_file_rel}" 2>/dev/null); then
   logger -t "\${LOGGER_NAME}" "Failed to read ready file. Exiting..."
-  exit 0
+  result=1
 elif [ -z "\${process_code}" ]; then
   logger -t "\${LOGGER_NAME}" "Ready file is empty. Exiting..."
-  exit 0
+  result=1
 elif [ "\${process_code}" -ne 0 ]; then
   logger -t "\${LOGGER_NAME}" "Ready file indicates an error in the PAM hook (\${process_code}). Exiting..."
-  exit 0
+  result=1
 fi
 
-# Acquire Lock
-exec 9>"\${HOME}/${lock_file_rel}"
-flock -w 10 9 || {
-  logger -t "\${LOGGER_NAME}" "Failed to acquire lock for logon script. Exiting."
-  exit 0
-}
+if [ "\${result}" -eq 0 ]; then
+  # Acquire Lock
+  exec 9>"\${HOME}/${lock_file_rel}"
+  flock -w 10 9 || {
+    logger -t "\${LOGGER_NAME}" "Failed to acquire lock for logon script. Exiting."
+    exit 0
+  }
 
-result=0
-on_login
-result="\${?}"
+  on_login
+  result="\${?}"
+fi
 
-if [ "\${result}" -ne 0 ]; then
-  logger -t "\${LOGGER_NAME}" "Error executing AD logon hook script: \${result}"
-  exit 0
+# Remove the ready file and log the result
+if ! rm -rf "\${HOME}/${ready_file_rel}"; then
+  logger -t "\${LOGGER_NAME}" "Failed to remove ready file"
 else
-  # Remove the ready file
-  if ! rm -f "\${HOME}/${ready_file_rel}"; then
-    logger -t "\${LOGGER_NAME}" "Failed to remove ready file"
-  else
-    logger -t "\${LOGGER_NAME}" "Removed ready file"
-  fi
-  logger -t "\${LOGGER_NAME}" "Successfully executed AD logon hook script"
-  exit \${result}
+  logger -t "\${LOGGER_NAME}" "Removed ready file"
 fi
+logger -t "\${LOGGER_NAME}" "Finished processing AD user hook with result code: \${result}"
+exit \${result}
 
 EOF
   )
   if ! echo "${user_content}" | sudo tee "${user_wrapper}" >/dev/null; then
-    logError "Failed to create AD logon hook script at ${user_wrapper}"
+    logError "Failed to create AD user hook script at ${user_wrapper}"
     return 1
   elif ! sudo chown root:"domain users" "${user_wrapper}"; then
-    logError "Failed to set ownership of AD logon hook script at ${user_wrapper}"
+    logError "Failed to set ownership of AD user hook script at ${user_wrapper}"
     return 1
   elif ! sudo chmod 750 "${user_wrapper}"; then
-    logError "Failed to set permissions of AD logon hook script at ${user_wrapper}"
+    logError "Failed to set permissions of AD user hook script at ${user_wrapper}"
     return 1
   else
-    logInfo "Successfully created AD logon hook script at ${user_wrapper}"
+    logInfo "Successfully created AD user hook script at ${user_wrapper}"
   fi
 
   # Install user service to be run at login
@@ -508,14 +506,14 @@ EOF
   service_content=$(
     cat <<EOF
 [Unit]
-Description=AD Logon Hook
+Description=AD User Hook
 After=default.target
 ConditionUser=!root
-StartLimitIntervalSec=5min
-StartLimitBurst=1
 
 [Service]
 Type=oneshot
+Restart=no
+SuccessExitStatus=0
 ExecStart=${user_wrapper}
 
 [Install]
@@ -524,13 +522,13 @@ EOF
   )
 
   if ! echo "${service_content}" | sudo tee "${service_unit}" >/dev/null; then
-    logError "Failed to create systemd service for AD logon hook at ${service_unit}"
+    logError "Failed to create systemd service for AD user hook at ${service_unit}"
     return 1
   elif ! sudo chown root:root "${service_unit}"; then
-    logError "Failed to set ownership of systemd service for AD logon hook at ${service_unit}"
+    logError "Failed to set ownership of systemd service for AD user hook at ${service_unit}"
     return 1
   elif ! sudo chmod 644 "${service_unit}"; then
-    logError "Failed to set permissions of systemd service for AD logon hook at ${service_unit}"
+    logError "Failed to set permissions of systemd service for AD user hook at ${service_unit}"
     return 1
   else
     logInfo "Successfully created user service for future users"
@@ -541,7 +539,7 @@ EOF
   path_content=$(
     cat <<EOF
 [Unit]
-Description=Path unit to trigger AD logon hook on home directory ready file creation
+Description=Path unit to trigger AD user hook on home directory ready file creation
 After=default.target
 
 [Path]
@@ -553,16 +551,16 @@ EOF
   )
 
   if ! echo "${path_content}" | sudo tee "${path_unit}" >/dev/null; then
-    logError "Failed to create systemd path unit for AD logon hook at ${path_unit}"
+    logError "Failed to create systemd path unit for AD user hook at ${path_unit}"
     return 1
   elif ! sudo chown root:root "${path_unit}"; then
-    logError "Failed to set ownership of systemd path unit for AD logon hook at ${path_unit}"
+    logError "Failed to set ownership of systemd path unit for AD user hook at ${path_unit}"
     return 1
   elif ! sudo chmod 644 "${path_unit}"; then
-    logError "Failed to set permissions of systemd path unit for AD logon hook at ${path_unit}"
+    logError "Failed to set permissions of systemd path unit for AD user hook at ${path_unit}"
     return 1
   else
-    logInfo "Successfully created systemd path unit for AD logon hook"
+    logInfo "Successfully created systemd path unit for AD user hook"
   fi
 
   # Install PAM hook script
@@ -572,7 +570,7 @@ EOF
 #!/bin/env sh
 # SPDX-License-Identifier: MIT
 #
-# PAM hook script on AD logon
+# PAM hook script on AD pam hook
 # Installed by setup's ad.sh
 
 LOGGER_NAME="${LOGON_SRV_NAME}"
@@ -584,13 +582,13 @@ if [ -n "\${PAM_USER}" ]; then
   logger -t "\${LOGGER_NAME}" "PAM_USER is set to \${PAM_USER}"
 fi
 if [ -z "\${ME_USER}" ]; then
-  logger -t "\${LOGGER_NAME}" "ME_USER is not set, skipping AD logon hook"
+  logger -t "\${LOGGER_NAME}" "ME_USER is not set, skipping AD PAM hook"
   exit 0
 elif [ "\${ME_USER}" = "root" ]; then
-  logger -t "\${LOGGER_NAME}" "ME_USER is root, skipping AD logon hook"
+  logger -t "\${LOGGER_NAME}" "ME_USER is root, skipping AD PAM hook"
   exit 0
 else
-  logger -t "\${LOGGER_NAME}" "ME_USER is \${ME_USER}, proceeding with AD logon hook"
+  logger -t "\${LOGGER_NAME}" "ME_USER is \${ME_USER}, proceeding with AD PAM hook"
 fi
 
 # Get User Details and validate him
@@ -608,24 +606,24 @@ elif [ ! -d "\${home_dir}" ]; then
   exit 0
 # Check if directory is under /home
 elif [ "\${home_dir#/home/}" = "\${home_dir}" ]; then
-  logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} is not under /home, skipping AD logon hook for user \${ME_USER}"
+  logger -t "\${LOGGER_NAME}" "Home directory \${home_dir} is not under /home, skipping AD PAM hook for user \${ME_USER}"
   exit 0
 elif ! mkdir -p "\${home_dir}/$(dirname "${ready_file_rel}")"; then
   logger -t "\${LOGGER_NAME}" "Failed to create state directory"
   exit 0
 # Check if user is a domain user
 elif ! id -nG \${cur_id} 2>/dev/null | grep -qw "domain users"; then
-  logger -t "\${LOGGER_NAME}" "User \${ME_USER} is not a member of domain users group, skipping AD logon hook"
+  logger -t "\${LOGGER_NAME}" "User \${ME_USER} is not a member of domain users group, skipping AD PAM hook"
   exit 0
 fi
 
 # Check this is a login event
 if [ -n "\${PAM_TYPE}" ]; then
   if [ "\${PAM_TYPE}" != "open_session" ]; then
-    logger -t "\${LOGGER_NAME}" "PAM_TYPE is \${PAM_TYPE}, not a login event, skipping AD logon hook"
+    logger -t "\${LOGGER_NAME}" "PAM_TYPE is \${PAM_TYPE}, not a login event, skipping AD PAM hook"
     exit 0
   else
-    logger -t "\${LOGGER_NAME}" "PAM_TYPE is open_session, proceeding with AD logon hook"
+    logger -t "\${LOGGER_NAME}" "PAM_TYPE is open_session, proceeding with AD PAM hook"
   fi
 else
   logger -t "\${LOGGER_NAME}" "PAM_TYPE is not set. Must be a manual execution. Proceeding..."
@@ -730,15 +728,15 @@ EOF
     logInfo "PAM hook already present in common-session file at ${pam_file}, skipping"
   fi
 
-  # Reload daemone and enable the service for all users
+  # Reload daemons and enable the service for all users
   if ! systemctl --user daemon-reload; then
-    logError "Failed to reload systemd user daemone after installing AD logon hook"
+    logError "Failed to reload systemd user daemons after installing AD logon hook"
     return 1
   elif ! sudo systemctl --global enable "$(basename "${path_unit}")"; then
     logError "Failed to enable systemd path unit for AD logon hook"
     return 1
   else
-    logInfo "Successfully enabled systemd path unit for AD logon hook and reloaded daemone"
+    logInfo "Successfully enabled systemd path unit for AD logon hook and reloaded daemons"
   fi
 
   return 0
