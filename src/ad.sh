@@ -23,6 +23,9 @@ ad_ubuntu_cinnamon_fix() {
   elif ! ad_fix_sudoers; then
     logError "Failed to fix sudoers configuration for AD login"
     return 1
+  elif ! ad_fix_polkit_udisks_mount; then
+    logError "Failed to fix polkit udisks mount permissions for AD login"
+    return 1
   elif ! ad_fix_services; then
     logError "Failed to fix AD related services for AD login"
     return 1
@@ -89,6 +92,48 @@ EOF
     return 1
   else
     logInfo "Successfully wrote AD sudoers file: ${sudoers_file}"
+  fi
+
+  return 0
+}
+
+ad_fix_polkit_udisks_mount() {
+  local ad_group="domain users"
+  local rules_file="/etc/polkit-1/rules.d/49-udisks-domain-users.rules"
+  local file_content
+
+  if ! getent group "${ad_group}" >/dev/null; then
+    logError "AD group not found for polkit udisks mount rule: ${ad_group}"
+    return 1
+  fi
+
+  file_content=$(
+    cat <<EOF
+polkit.addRule(function(action, subject) {
+  if (subject.active && subject.local && subject.isInGroup("${ad_group}")) {
+    if (action.id == "org.freedesktop.udisks2.filesystem-mount" ||
+        action.id == "org.freedesktop.udisks2.filesystem-mount-system") {
+      return polkit.Result.YES;
+    }
+  }
+});
+EOF
+  )
+
+  if ! echo "${file_content}" | sudo tee "${rules_file}" >/dev/null; then
+    logError "Failed to write AD polkit udisks mount rule file: ${rules_file}"
+    return 1
+  elif ! sudo chown root:root "${rules_file}"; then
+    logError "Failed to set ownership on AD polkit udisks mount rule file: ${rules_file}"
+    return 1
+  elif ! sudo chmod 644 "${rules_file}"; then
+    logError "Failed to set permissions on AD polkit udisks mount rule file: ${rules_file}"
+    return 1
+  elif ! sudo systemctl restart polkit; then
+    logError "Failed to restart polkit after updating AD udisks mount rule"
+    return 1
+  else
+    logInfo "Successfully configured polkit udisks mount rule for AD group: ${ad_group}"
   fi
 
   return 0
