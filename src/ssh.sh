@@ -612,7 +612,7 @@ ssh_exec() {
 
   # Build the SSH command
   local _ssh_uri _ssh_cmd _ssh_res _ssh_code
-  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no" -o "PQWarning=no")
+  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no")
   if [[ -n ${__ssh_port} ]]; then
     _ssh_cmd+=(-p "${__ssh_port}")
   fi
@@ -627,10 +627,14 @@ ssh_exec() {
   if [[ -n ${__ssh_pwd} ]]; then
     sshpass_exec _ssh_res "${__ssh_pwd}" "${_ssh_cmd[@]}"
     _ssh_code=$?
+    # Filter post-quantum warning from output
+    _ssh_res=$(echo "${_ssh_res}" | grep -v -e "post-quantum key exchange algorithm" -e "store now, decrypt later" -e "https://openssh.com/pq.html")
   else
     logTrace "Executing command: ${_ssh_cmd[*]}"
     _ssh_res=$("${_ssh_cmd[@]}" 2>&1)
     _ssh_code=$?
+    # Filter post-quantum warning from output
+    _ssh_res=$(echo "${_ssh_res}" | grep -v -e "post-quantum key exchange algorithm" -e "store now, decrypt later" -e "https://openssh.com/pq.html")
 
     if [[ ${_ssh_code} -ne 0 ]]; then
       logError <<EOF
@@ -692,6 +696,8 @@ sshpass_exec() {
   logTrace "Executing command: ${_pass_cmd_p[*]}"
   _pass_res=$("${_pass_cmd[@]}" 2>&1)
   _pass_code=$?
+  # Filter post-quantum warning from output
+  _pass_res=$(echo "${_pass_res}" | grep -v -e "post-quantum key exchange algorithm" -e "store now, decrypt later" -e "https://openssh.com/pq.html")
 
   if [[ ${_pass_code} -ne 0 ]]; then
     logError <<EOF

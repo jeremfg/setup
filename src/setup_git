@@ -877,8 +877,10 @@ sg_ssh_test_connection() {
   local res=0
   local res2
 
-  res2=$(ssh -o "StrictHostKeyChecking=no" -o "PQWarning=no" -T "${_test_url%:*}" 2>&1)
+  res2=$(ssh -o "StrictHostKeyChecking=no" -T "${_test_url%:*}" 2>&1)
   res=$?
+  # Filter post-quantum warning from output
+  res2=$(echo "${res2}" | grep -v -e "post-quantum key exchange algorithm" -e "store now, decrypt later" -e "https://openssh.com/pq.html")
   if [[ ${res} -eq 255 ]]; then
     sg_print "SSH connection denied: ${res2}"
     res=1
