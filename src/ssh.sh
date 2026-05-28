@@ -612,7 +612,7 @@ ssh_exec() {
 
   # Build the SSH command
   local _ssh_uri _ssh_cmd _ssh_res _ssh_code
-  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no")
+  _ssh_cmd=(ssh -o "StrictHostKeyChecking=no" -o "PQWarning=no")
   if [[ -n ${__ssh_port} ]]; then
     _ssh_cmd+=(-p "${__ssh_port}")
   fi

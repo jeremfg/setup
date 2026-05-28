@@ -280,7 +280,7 @@ sysvol_replication() {
   set -- sudo rsync -aAXH --delete --numeric-ids --rsync-path="sudo rsync-wrapper"
 
   # SSH arguments:
-  set -- "${@}" -e "ssh -o StrictHostKeyChecking=no -i @SSH_IDENTITY_KEY@"
+  set -- "${@}" -e "ssh -o StrictHostKeyChecking=no -o PQWarning=no -i @SSH_IDENTITY_KEY@"
 
   # Copy arguments:
   set -- "${@}" "${PDC_USER}@${PDC_FQDN}:${SYSVOL_PATH}" "${SYSVOL_PATH}"
