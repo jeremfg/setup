@@ -71,6 +71,8 @@ age_install() {
       fi
     fi
   done
+  
+  # TODO: Need to source .profile for the rare cases where the local bin folder did not exist
 
   # Confirm age is working
   if ! command -v age &>/dev/null; then

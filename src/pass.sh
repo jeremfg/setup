@@ -111,7 +111,14 @@ EOF
         return 1
       fi
 
-      logInfo "Generated GPG key ID: ${gpg_id}"
+        logInfo "Generated GPG key ID: ${gpg_id}"
+        
+        # Save configuration
+        logInfo "Updating config with ${gpg_key_name}..."
+        if ! config_save "${config_file}" "${gpg_key_name}" "${gpg_id}"; then
+          logError "Could not update config. Add manually: ${gpg_key_name}=${gpg_id}"
+          return 1
+        fi
     fi
   fi
 
@@ -130,13 +137,6 @@ EOF
         logError "Failed to initialize pass with GPG ID ${gpg_id}"
         return 1
       fi
-    fi
-
-    # Save configuration
-    logInfo "Updating config with ${gpg_key_name}..."
-    if ! config_save "${config_file}" "${gpg_key_name}" "${gpg_id}"; then
-      logError "Could not update config. Add manually: ${gpg_key_name}=${gpg_id}"
-      return 1
     fi
   else
     logError "Could not determine or generate GPG key for pass initialization"
